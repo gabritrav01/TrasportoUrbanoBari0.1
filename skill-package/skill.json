@@ -1,0 +1,59 @@
+{
+  "manifest": {
+    "manifestVersion": "1.0",
+    "publishingInformation": {
+      "locales": {
+        "it-IT": {
+          "name": "Trasporto Urbano Bari",
+          "summary": "Prossimi arrivi bus AMTAB a Bari, linee per destinazione e preferiti.",
+          "description": "Trasporto Urbano Bari e una skill Custom Alexa in italiano (it-IT) per consultare i prossimi arrivi alle fermate AMTAB, trovare linee verso destinazioni utili in citta, ottenere risultati da qui o vicino a me e salvare fermate preferite con risposta breve o completa.",
+          "examplePhrases": [
+            "Alexa, apri trasporto urbano bari",
+            "Alexa, chiedi a trasporto urbano bari i prossimi bus alla stazione",
+            "Alexa, chiedi a trasporto urbano bari che linee vanno al policlinico"
+          ],
+          "keywords": [
+            "amtab",
+            "bari",
+            "bus",
+            "fermate",
+            "linee",
+            "stazione",
+            "policlinico",
+            "lungomare",
+            "trasporto urbano"
+          ]
+        }
+      },
+      "isAvailableWorldwide": false,
+      "distributionCountries": [
+        "IT"
+      ],
+      "testingInstructions": "Versione 0.1. Testare richieste fermata, destinazione, vicino a me, preferiti, risposta breve/completa e gestione ambiguita con chiarimento.",
+      "category": "TRAVEL_AND_TRANSPORT",
+      "smallIconUri": "https://example.com/assets/trasporto-urbano-bari-108x108.png",
+      "largeIconUri": "https://example.com/assets/trasporto-urbano-bari-512x512.png"
+    },
+    "apis": {
+      "custom": {}
+    },
+    "permissions": [
+      {
+        "name": "alexa::devices:all:address:full:read"
+      }
+    ],
+    "privacyAndCompliance": {
+      "allowsPurchases": false,
+      "usesPersonalInfo": true,
+      "isChildDirected": false,
+      "isExportCompliant": true,
+      "containsAds": false,
+      "locales": {
+        "it-IT": {
+          "privacyPolicyUrl": "https://example.com/trasporto-urbano-bari/privacy",
+          "termsOfUseUrl": "https://example.com/trasporto-urbano-bari/terms"
+        }
+      }
+    }
+  }
+}

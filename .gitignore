@@ -1,0 +1,38 @@
+# Node.js dependencies and logs
+node_modules/
+lambda/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build and reports
+coverage/
+dist/
+build/
+.cache/
+.tmp/
+tmp/
+
+# Alexa / ASK local artifacts
+.ask/
+.ask-cli/
+ask-resources.json
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+secrets/
+credentials/
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

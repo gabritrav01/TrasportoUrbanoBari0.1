@@ -1,0 +1,640 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "trasporto urbano bari",
+      "intents": [
+        {
+          "name": "NextArrivalsByStopIntent",
+          "slots": [
+            {
+              "name": "stopName",
+              "type": "AMTAB_STOP"
+            },
+            {
+              "name": "lineNumber",
+              "type": "AMTAB_LINE"
+            }
+          ],
+          "samples": [
+            "prossimi bus a {stopName}",
+            "che autobus passano a {stopName}",
+            "tra quanto passa il prossimo bus a {stopName}",
+            "orari alla fermata {stopName}",
+            "bus in arrivo a {stopName}",
+            "quando arriva la linea {lineNumber} a {stopName}",
+            "a {stopName} quando passa il {lineNumber}",
+            "mi dici cosa passa alla fermata {stopName}",
+            "alla stazione che passa",
+            "in universita che autobus ci sono",
+            "al policlinico che passa",
+            "al lungomare che passa"
+          ]
+        },
+        {
+          "name": "NextArrivalsByNearbyIntent",
+          "slots": [
+            {
+              "name": "lineNumber",
+              "type": "AMTAB_LINE"
+            }
+          ],
+          "samples": [
+            "prossimi bus da qui",
+            "prossimi bus vicino a me",
+            "che passa vicino a me",
+            "che passa da qui adesso",
+            "dove sono che autobus arrivano",
+            "da qui quando passa il {lineNumber}",
+            "vicino a me passa la linea {lineNumber}",
+            "dammi i passaggi qui intorno",
+            "qui alla fermata cosa passa"
+          ]
+        },
+        {
+          "name": "RoutesToDestinationIntent",
+          "slots": [
+            {
+              "name": "destination",
+              "type": "AMTAB_DESTINATION"
+            },
+            {
+              "name": "stopName",
+              "type": "AMTAB_STOP"
+            }
+          ],
+          "samples": [
+            "come arrivo a {destination}",
+            "che bus devo prendere per {destination}",
+            "quali linee vanno a {destination}",
+            "da {stopName} per {destination}",
+            "da qui per {destination}",
+            "vicino a me per {destination}",
+            "da casa per {destination}",
+            "dalla stazione per {destination}",
+            "dall universita per {destination}",
+            "dal policlinico per {destination}"
+          ]
+        },
+        {
+          "name": "LineDirectionArrivalsIntent",
+          "slots": [
+            {
+              "name": "lineNumber",
+              "type": "AMTAB_LINE"
+            },
+            {
+              "name": "destination",
+              "type": "AMTAB_DESTINATION"
+            },
+            {
+              "name": "stopName",
+              "type": "AMTAB_STOP"
+            }
+          ],
+          "samples": [
+            "quando passa la linea {lineNumber} per {destination}",
+            "prossimi passaggi del {lineNumber} verso {destination}",
+            "il {lineNumber} direzione {destination} a {stopName}",
+            "a {stopName} quando arriva il {lineNumber} per {destination}",
+            "da qui quando passa il {lineNumber} verso {destination}",
+            "vicino a me il {lineNumber} per {destination}",
+            "il bus {lineNumber} per {destination}",
+            "linea {lineNumber} verso {destination} alla stazione"
+          ]
+        },
+        {
+          "name": "SaveFavoriteStopIntent",
+          "slots": [
+            {
+              "name": "stopName",
+              "type": "AMTAB_STOP"
+            },
+            {
+              "name": "favoriteLabel",
+              "type": "FAVORITE_LABEL"
+            }
+          ],
+          "samples": [
+            "salva {stopName} nei preferiti",
+            "salva {stopName} come {favoriteLabel}",
+            "aggiungi {stopName} ai preferiti",
+            "memorizza {stopName} come fermata {favoriteLabel}",
+            "imposta {stopName} come preferita {favoriteLabel}",
+            "salva da qui come {favoriteLabel}",
+            "salva vicino a me nei preferiti",
+            "salva la stazione come {favoriteLabel}",
+            "salva il policlinico come {favoriteLabel}"
+          ]
+        },
+        {
+          "name": "GetFavoriteStopArrivalsIntent",
+          "slots": [
+            {
+              "name": "favoriteLabel",
+              "type": "FAVORITE_LABEL"
+            }
+          ],
+          "samples": [
+            "prossimi bus della preferita {favoriteLabel}",
+            "prossimi bus della fermata {favoriteLabel}",
+            "usa la preferita {favoriteLabel}",
+            "richiama la fermata {favoriteLabel}",
+            "che passa alla mia preferita {favoriteLabel}",
+            "prossimi bus della preferita",
+            "usa la fermata di casa",
+            "dammi i bus della stazione preferita"
+          ]
+        },
+        {
+          "name": "ResolveAmbiguityIntent",
+          "slots": [
+            {
+              "name": "ambiguityChoice",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "{ambiguityChoice}",
+            "intendo {ambiguityChoice}",
+            "scelgo {ambiguityChoice}",
+            "prendo {ambiguityChoice}",
+            "la prima",
+            "la seconda",
+            "la terza"
+          ]
+        },
+        {
+          "name": "SetResponseModeIntent",
+          "slots": [
+            {
+              "name": "responseMode",
+              "type": "RESPONSE_MODE"
+            }
+          ],
+          "samples": [
+            "imposta risposta {responseMode}",
+            "metti modalita {responseMode}",
+            "rispondi in modo {responseMode}",
+            "voglio risposte {responseMode}",
+            "usa formato {responseMode}",
+            "parla {responseMode}"
+          ]
+        },
+        {
+          "name": "AMTABHelpExamplesIntent",
+          "samples": [
+            "fammi esempi",
+            "dammi esempi",
+            "come posso chiedere",
+            "cosa posso dire",
+            "aiuto con esempi",
+            "frasi di esempio",
+            "comandi disponibili",
+            "mostrami esempi per la stazione"
+          ]
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.RepeatIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NavigateHomeIntent",
+          "samples": []
+        }
+      ],
+      "types": [
+        {
+          "name": "AMTAB_STOP",
+          "values": [
+            {
+              "name": {
+                "value": "piazza moro lato capruzzi",
+                "synonyms": [
+                  "piazza moro",
+                  "stazione",
+                  "stazione centrale",
+                  "capruzzi"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "piazza moro lato ateneo",
+                "synonyms": [
+                  "piazza moro ateneo",
+                  "ateneo",
+                  "universita ateneo",
+                  "stazione lato ateneo"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "policlinico ingresso principale",
+                "synonyms": [
+                  "policlinico",
+                  "ospedale policlinico",
+                  "ospedale",
+                  "policlinico bari"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "campus universitario",
+                "synonyms": [
+                  "universita",
+                  "universita bari",
+                  "campus",
+                  "ateneo",
+                  "facolta"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "lungomare nazario sauro",
+                "synonyms": [
+                  "lungomare",
+                  "lungomare bari",
+                  "nazario sauro",
+                  "mare"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "aeroporto karol wojtyla",
+                "synonyms": [
+                  "aeroporto",
+                  "palese",
+                  "karol wojtyla"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "piazza massari",
+                "synonyms": [
+                  "massari",
+                  "centro storico",
+                  "bari vecchia"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "poggiofranco via camillo rosalba",
+                "synonyms": [
+                  "poggiofranco",
+                  "rosalba",
+                  "camillo rosalba"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "japigia via caldarola",
+                "synonyms": [
+                  "japigia",
+                  "caldarola"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "san paolo viale europa",
+                "synonyms": [
+                  "san paolo",
+                  "viale europa"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "casa",
+                "synonyms": [
+                  "fermata di casa",
+                  "sotto casa",
+                  "vicino casa"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "da qui",
+                "synonyms": [
+                  "vicino a me",
+                  "qui",
+                  "dove sono",
+                  "posizione attuale"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "AMTAB_DESTINATION",
+          "values": [
+            {
+              "name": {
+                "value": "stazione centrale bari",
+                "synonyms": [
+                  "stazione",
+                  "piazza moro",
+                  "centrale"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "universita degli studi di bari",
+                "synonyms": [
+                  "universita",
+                  "ateneo",
+                  "campus"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "policlinico di bari",
+                "synonyms": [
+                  "policlinico",
+                  "ospedale",
+                  "ospedale policlinico"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "lungomare nazario sauro",
+                "synonyms": [
+                  "lungomare",
+                  "mare",
+                  "sauro"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "aeroporto karol wojtyla",
+                "synonyms": [
+                  "aeroporto",
+                  "palese",
+                  "karol wojtyla"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "casa",
+                "synonyms": [
+                  "a casa",
+                  "la mia casa",
+                  "rientro casa"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "porto di bari",
+                "synonyms": [
+                  "porto",
+                  "terminal porto"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "poggiofranco",
+                "synonyms": [
+                  "quartiere poggiofranco",
+                  "rosalba"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "san paolo",
+                "synonyms": [
+                  "quartiere san paolo",
+                  "viale europa"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "japigia",
+                "synonyms": [
+                  "quartiere japigia",
+                  "caldarola"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "AMTAB_LINE",
+          "values": [
+            {
+              "name": {
+                "value": "1",
+                "synonyms": [
+                  "linea 1",
+                  "uno"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "2",
+                "synonyms": [
+                  "linea 2",
+                  "due"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "2/",
+                "synonyms": [
+                  "linea 2 barra",
+                  "due barra",
+                  "due slash"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "6",
+                "synonyms": [
+                  "linea 6",
+                  "sei"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "10",
+                "synonyms": [
+                  "linea 10",
+                  "dieci"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "12",
+                "synonyms": [
+                  "linea 12",
+                  "dodici"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "14",
+                "synonyms": [
+                  "linea 14",
+                  "quattordici"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "C",
+                "synonyms": [
+                  "linea c",
+                  "c aeroporto"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "RESPONSE_MODE",
+          "values": [
+            {
+              "name": {
+                "value": "breve",
+                "synonyms": [
+                  "corta",
+                  "sintetica",
+                  "essenziale",
+                  "rapida"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "completa",
+                "synonyms": [
+                  "dettagliata",
+                  "estesa",
+                  "lunga",
+                  "con dettagli"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "FAVORITE_LABEL",
+          "values": [
+            {
+              "name": {
+                "value": "casa",
+                "synonyms": [
+                  "home",
+                  "preferita casa",
+                  "fermata casa"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "lavoro",
+                "synonyms": [
+                  "ufficio",
+                  "preferita lavoro"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "stazione",
+                "synonyms": [
+                  "centrale",
+                  "preferita stazione"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "universita",
+                "synonyms": [
+                  "ateneo",
+                  "campus",
+                  "preferita universita"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "policlinico",
+                "synonyms": [
+                  "ospedale",
+                  "preferita policlinico"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "lungomare",
+                "synonyms": [
+                  "mare",
+                  "preferita lungomare"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "scuola",
+                "synonyms": [
+                  "istituto",
+                  "preferita scuola"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "predefinita",
+                "synonyms": [
+                  "default",
+                  "principale"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
