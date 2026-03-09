@@ -1,6 +1,13 @@
 'use strict';
 
 const { sortByEta, normalizeText } = require('../resolvers/transportDataResolver');
+const {
+  SOURCE_TYPES,
+  PREDICTION_TYPES,
+  normalizeSource,
+  normalizePredictionType,
+  clampConfidence
+} = require('./providers/domain/providerShapes');
 
 function uniqueById(items) {
   const seen = new Set();
@@ -25,6 +32,101 @@ function dedupeByKey(items, keySelector) {
     }
     seen.add(key);
     return true;
+  });
+}
+
+function mergeReliabilityBand(bands) {
+  const list = Array.isArray(bands) ? bands.map((band) => normalizeReliabilityBand(band)) : [];
+  if (list.includes('discard')) {
+    return 'discard';
+  }
+  if (list.includes('disclaimer')) {
+    return 'disclaimer';
+  }
+  return 'direct';
+}
+
+function normalizeReliabilityBand(value) {
+  if (value === 'direct' || value === 'disclaimer' || value === 'discard') {
+    return value;
+  }
+  // Prudente: assenza o valore non valido non viene promosso a "direct".
+  return 'disclaimer';
+}
+
+function toFreshness(value) {
+  if (!value || typeof value !== 'object') {
+    return {
+      ageSec: null,
+      freshnessScore: 0.5,
+      bucket: 'unknown'
+    };
+  }
+
+  return {
+    ageSec: typeof value.ageSec === 'number' && Number.isFinite(value.ageSec) ? value.ageSec : null,
+    freshnessScore:
+      typeof value.freshnessScore === 'number' && Number.isFinite(value.freshnessScore)
+        ? Math.max(0, Math.min(1, value.freshnessScore))
+        : 0.5,
+    bucket: typeof value.bucket === 'string' && value.bucket ? value.bucket : 'unknown'
+  };
+}
+
+function toSourceName(value, fallbackValue) {
+  if (typeof value !== 'string') {
+    return fallbackValue;
+  }
+  const normalized = value.trim();
+  return normalized || fallbackValue;
+}
+
+function sanitizeArrivalRecord(arrival, overrides = {}) {
+  const base = arrival && typeof arrival === 'object' ? arrival : {};
+  const predictionType = normalizePredictionType(
+    overrides.predictionType !== undefined ? overrides.predictionType : base.predictionType,
+    PREDICTION_TYPES.INFERRED
+  );
+  let source = normalizeSource(
+    overrides.source !== undefined ? overrides.source : base.source,
+    SOURCE_TYPES.FALLBACK
+  );
+
+  if (predictionType === PREDICTION_TYPES.INFERRED && source === SOURCE_TYPES.OFFICIAL) {
+    source = SOURCE_TYPES.PUBLIC;
+  }
+
+  const confidence = clampConfidence(
+    overrides.confidence !== undefined ? overrides.confidence : base.confidence,
+    0.55
+  );
+  const reliabilityBand = normalizeReliabilityBand(
+    overrides.reliabilityBand !== undefined ? overrides.reliabilityBand : base.reliabilityBand
+  );
+
+  return {
+    ...base,
+    source,
+    sourceName: toSourceName(
+      overrides.sourceName !== undefined ? overrides.sourceName : base.sourceName,
+      source === SOURCE_TYPES.OFFICIAL ? 'amtab_primary' : 'transport_fallback'
+    ),
+    predictionType,
+    confidence,
+    freshness: toFreshness(
+      overrides.freshness !== undefined ? overrides.freshness : base.freshness
+    ),
+    reliabilityBand
+  };
+}
+
+function markScheduledFallback(arrival) {
+  return sanitizeArrivalRecord(arrival, {
+    source: SOURCE_TYPES.FALLBACK,
+    sourceName: `${toSourceName(arrival.sourceName, 'transport_fallback')}:scheduled_fallback`,
+    predictionType: PREDICTION_TYPES.SCHEDULED,
+    confidence: Math.min(clampConfidence(arrival.confidence, 0.7), 0.74),
+    reliabilityBand: 'disclaimer'
   });
 }
 
@@ -123,25 +225,25 @@ class TransportService {
   async getRealtimePredictions(stopId, lineId) {
     const primaryRealtime = await this._safeArrayCall(this.primaryProvider, 'getRealtimePredictions', [stopId, lineId]);
     if (primaryRealtime.length) {
-      return sortByEta(primaryRealtime);
+      return sortByEta(primaryRealtime.map((arrival) => sanitizeArrivalRecord(arrival)));
     }
     const fallbackRealtime = await this._safeArrayCall(this.fallbackProvider, 'getRealtimePredictions', [stopId, lineId]);
-    return sortByEta(fallbackRealtime);
+    return sortByEta(fallbackRealtime.map((arrival) => sanitizeArrivalRecord(arrival)));
   }
 
   async getScheduledArrivals(stopId, lineId) {
     const primaryScheduled = await this._safeArrayCall(this.primaryProvider, 'getScheduledArrivals', [stopId, lineId]);
     if (primaryScheduled.length) {
-      return sortByEta(primaryScheduled);
+      return sortByEta(primaryScheduled.map((arrival) => sanitizeArrivalRecord(arrival)));
     }
     const fallbackScheduled = await this._safeArrayCall(this.fallbackProvider, 'getScheduledArrivals', [stopId, lineId]);
-    return sortByEta(fallbackScheduled);
+    return sortByEta(fallbackScheduled.map((arrival) => sanitizeArrivalRecord(arrival)));
   }
 
   async getStopArrivals(stopId) {
     const direct = await this._callPreferPrimaryArray('getStopArrivals', [stopId]);
     if (direct.length) {
-      return sortByEta(direct);
+      return sortByEta(direct.map((arrival) => sanitizeArrivalRecord(arrival)));
     }
 
     const lines = await this.getLinesServingStop(stopId);
@@ -152,10 +254,10 @@ class TransportService {
         fallbackArrivals.push(...realtime);
       } else {
         const scheduled = await this.getScheduledArrivals(stopId, line.id);
-        fallbackArrivals.push(...scheduled);
+        fallbackArrivals.push(...scheduled.map((arrival) => markScheduledFallback(arrival)));
       }
     }
-    return sortByEta(fallbackArrivals);
+    return sortByEta(fallbackArrivals.map((arrival) => sanitizeArrivalRecord(arrival)));
   }
 
   async searchLines(query) {
@@ -211,7 +313,8 @@ class TransportService {
 
   async getNextArrivalsByStop({ stopId, lineId }) {
     const arrivals = await this.getStopArrivals(stopId);
-    const filtered = lineId ? arrivals.filter((arrival) => arrival.lineId === lineId) : arrivals;
+    const filtered = (lineId ? arrivals.filter((arrival) => arrival.lineId === lineId) : arrivals)
+      .map((arrival) => sanitizeArrivalRecord(arrival));
 
     const grouped = new Map();
     filtered.forEach((arrival) => {
@@ -219,17 +322,47 @@ class TransportService {
         grouped.set(arrival.lineId, {
           lineId: arrival.lineId,
           destinationName: arrival.destinationName,
-          minutes: []
+          minutes: [],
+          reliabilityBands: [],
+          confidences: [],
+          freshnessScores: [],
+          sources: [],
+          sourceNames: [],
+          predictionTypes: []
         });
       }
       grouped.get(arrival.lineId).minutes.push(arrival.etaMinutes);
+      grouped.get(arrival.lineId).reliabilityBands.push(arrival.reliabilityBand);
+      grouped.get(arrival.lineId).confidences.push(arrival.confidence);
+      grouped.get(arrival.lineId).freshnessScores.push(arrival.freshness.freshnessScore);
+      grouped.get(arrival.lineId).sources.push(arrival.source);
+      grouped.get(arrival.lineId).sourceNames.push(arrival.sourceName);
+      grouped.get(arrival.lineId).predictionTypes.push(arrival.predictionType);
     });
 
     return Array.from(grouped.values())
       .map((entry) => ({
         lineId: entry.lineId,
         destinationName: entry.destinationName,
-        minutes: entry.minutes.sort((a, b) => a - b).slice(0, 3)
+        minutes: entry.minutes.sort((a, b) => a - b).slice(0, 3),
+        reliabilityBand: mergeReliabilityBand(entry.reliabilityBands),
+        confidence: entry.confidences.length ? Math.min(...entry.confidences) : 0.55,
+        freshness: {
+          ageSec: null,
+          freshnessScore: entry.freshnessScores.length ? Math.min(...entry.freshnessScores) : 0.5,
+          bucket: 'aggregated'
+        },
+        source: entry.sources.includes(SOURCE_TYPES.FALLBACK)
+          ? SOURCE_TYPES.FALLBACK
+          : entry.sources.includes(SOURCE_TYPES.PUBLIC)
+            ? SOURCE_TYPES.PUBLIC
+            : SOURCE_TYPES.OFFICIAL,
+        sourceName: Array.from(new Set(entry.sourceNames)).filter(Boolean).join(','),
+        predictionType: entry.predictionTypes.includes(PREDICTION_TYPES.REALTIME)
+          ? PREDICTION_TYPES.REALTIME
+          : entry.predictionTypes.includes(PREDICTION_TYPES.SCHEDULED)
+            ? PREDICTION_TYPES.SCHEDULED
+            : PREDICTION_TYPES.INFERRED
       }))
       .filter((entry) => entry.minutes.length > 0)
       .sort((a, b) => a.minutes[0] - b.minutes[0]);
@@ -266,17 +399,40 @@ class TransportService {
     }
 
     const realtime = await this.getRealtimePredictions(candidateStopId, line.id);
-    const arrivals = realtime.length ? realtime : await this.getScheduledArrivals(candidateStopId, line.id);
+    const arrivals = realtime.length
+      ? realtime
+      : (await this.getScheduledArrivals(candidateStopId, line.id)).map((arrival) =>
+        markScheduledFallback(arrival)
+      );
     const minutes = arrivals.map((arrival) => arrival.etaMinutes).filter((eta) => typeof eta === 'number').slice(0, 3);
     if (!minutes.length) {
       return [];
     }
+    const reliabilityBand = mergeReliabilityBand(arrivals.map((arrival) => arrival.reliabilityBand));
 
     return [
       {
         lineId: line.id,
         destinationName: line.destinationName,
-        minutes
+        minutes,
+        reliabilityBand,
+        confidence: arrivals.length
+          ? Math.min(...arrivals.map((arrival) => arrival.confidence))
+          : 0.55,
+        freshness: {
+          ageSec: null,
+          freshnessScore: arrivals.length
+            ? Math.min(...arrivals.map((arrival) => arrival.freshness.freshnessScore))
+            : 0.5,
+          bucket: 'aggregated'
+        },
+        source: arrivals.some((arrival) => arrival.source === SOURCE_TYPES.FALLBACK)
+          ? SOURCE_TYPES.FALLBACK
+          : arrivals.some((arrival) => arrival.source === SOURCE_TYPES.PUBLIC)
+            ? SOURCE_TYPES.PUBLIC
+            : SOURCE_TYPES.OFFICIAL,
+        sourceName: Array.from(new Set(arrivals.map((arrival) => arrival.sourceName))).filter(Boolean).join(','),
+        predictionType: realtime.length ? PREDICTION_TYPES.REALTIME : PREDICTION_TYPES.SCHEDULED
       }
     ];
   }

@@ -21,6 +21,67 @@ function formatArrivalsSegment(arrival, responseMode) {
   return `linea ${arrival.lineId} per ${arrival.destinationName} ${timeText}`;
 }
 
+function normalizeReliabilityBand(value) {
+  if (value === 'direct' || value === 'disclaimer' || value === 'discard') {
+    return value;
+  }
+  return 'disclaimer';
+}
+
+function getFreshnessScore(arrival) {
+  if (!arrival || !arrival.freshness || typeof arrival.freshness !== 'object') {
+    return null;
+  }
+  const score = arrival.freshness.freshnessScore;
+  if (typeof score !== 'number' || !Number.isFinite(score)) {
+    return null;
+  }
+  return Math.max(0, Math.min(1, score));
+}
+
+function hasLowConfidence(arrivals) {
+  return (arrivals || []).some((arrival) => {
+    if (!arrival || typeof arrival.confidence !== 'number' || !Number.isFinite(arrival.confidence)) {
+      return true;
+    }
+    return arrival.confidence < 0.8;
+  });
+}
+
+function buildReliabilityDisclaimer(arrivals) {
+  const safeArrivals = Array.isArray(arrivals) ? arrivals : [];
+  if (!safeArrivals.length) {
+    return '';
+  }
+
+  const hasDiscard = safeArrivals.some((arrival) => normalizeReliabilityBand(arrival && arrival.reliabilityBand) === 'discard');
+  const hasDisclaimerBand = safeArrivals.some(
+    (arrival) => normalizeReliabilityBand(arrival && arrival.reliabilityBand) === 'disclaimer'
+  );
+  const hasNonOfficialSource = safeArrivals.some((arrival) => arrival && arrival.source && arrival.source !== 'official');
+  const hasNonRealtime = safeArrivals.some(
+    (arrival) => arrival && arrival.predictionType && arrival.predictionType !== 'realtime'
+  );
+  const hasAgingFreshness = safeArrivals.some((arrival) => {
+    const score = getFreshnessScore(arrival);
+    return score !== null && score < 0.6;
+  });
+
+  if (hasDiscard) {
+    return ' Nota: alcuni dati poco affidabili sono stati esclusi.';
+  }
+  if (hasNonOfficialSource && hasNonRealtime) {
+    return ' Nota: stime da fonte secondaria, orari soggetti a variazioni.';
+  }
+  if (hasNonRealtime) {
+    return ' Nota: orari programmati o stimati, non sempre realtime.';
+  }
+  if (hasDisclaimerBand || hasLowConfidence(safeArrivals) || hasAgingFreshness) {
+    return ' Nota: alcuni tempi sono indicativi e potrebbero variare.';
+  }
+  return '';
+}
+
 function formatArrivalsByStop({ stop, arrivals, responseMode, nearby }) {
   if (!arrivals.length) {
     if (nearby) {
@@ -33,7 +94,8 @@ function formatArrivalsByStop({ stop, arrivals, responseMode, nearby }) {
   const selected = arrivals.slice(0, limit).map((arrival) => formatArrivalsSegment(arrival, responseMode));
   const intro = nearby ? `Fermata vicina: ${stop.name}.` : `Fermata: ${stop.name}.`;
   const suffix = responseMode === RESPONSE_MODES.BRIEF ? '' : ' Puoi dire risposta breve per una sintesi.';
-  return `${intro} ${selected.join('. ')}.${suffix}`;
+  const disclaimer = buildReliabilityDisclaimer(arrivals);
+  return `${intro} ${selected.join('. ')}.${suffix}${disclaimer}`;
 }
 
 function formatRoutesToDestination({ destination, originStop, routes, responseMode }) {
@@ -64,11 +126,12 @@ function formatLineDirectionArrivals({ line, destination, stop, arrivals, respon
 
   const limit = responseMode === RESPONSE_MODES.BRIEF ? 2 : 3;
   const selected = arrivals.slice(0, limit).map((arrival) => formatArrivalsSegment(arrival, responseMode));
+  const disclaimer = buildReliabilityDisclaimer(arrivals);
   if (stop) {
-    return `Linea ${line.id} verso ${destination.name} a ${stop.name}: ${selected.join('. ')}.`;
+    return `Linea ${line.id} verso ${destination.name} a ${stop.name}: ${selected.join('. ')}.${disclaimer}`;
   }
 
-  return `Linea ${line.id} verso ${destination.name}: ${selected.join('. ')}.`;
+  return `Linea ${line.id} verso ${destination.name}: ${selected.join('. ')}.${disclaimer}`;
 }
 
 function formatAmbiguityPrompt(kindLabel, options) {

@@ -10,7 +10,8 @@
  *   aliases: string[],
  *   coordinates: { lat: number, lon: number },
  *   lineIds: string[],
- *   source: string
+ *   source: 'official'|'public'|'fallback',
+ *   confidence: number
  * }
  *
  * DestinationTarget:
@@ -19,7 +20,8 @@
  *   name: string,
  *   aliases: string[],
  *   targetStopIds: string[],
- *   source: string
+ *   source: 'official'|'public'|'fallback',
+ *   confidence: number
  * }
  *
  * Arrival:
@@ -29,9 +31,11 @@
  *   destinationTargetId: string,
  *   destinationName: string,
  *   etaMinutes: number,
+ *   predictionType: 'realtime'|'scheduled'|'inferred',
  *   scheduledEpochMs: number|null,
  *   predictedEpochMs: number|null,
- *   source: string,
+ *   source: 'official'|'public'|'fallback',
+ *   confidence: number,
  *   isRealtime: boolean
  * }
  *
@@ -41,9 +45,11 @@
  *   originStopId: string,
  *   destinationTargetId: string,
  *   lineIds: string[],
- *   transfers: number,
- *   estimatedMinutes: number|null,
- *   source: string
+  *   transfers: number,
+  *   estimatedMinutes: number|null,
+ *   predictionType: 'realtime'|'scheduled'|'inferred',
+ *   source: 'official'|'public'|'fallback',
+ *   confidence: number
  * }
  */
 class TransportProvider {

@@ -1,0 +1,28 @@
+[
+  {
+    "id": "STOP_001",
+    "name": "Stazione Centrale",
+    "aliases": ["centrale", "stazione", ""],
+    "coordinates": {
+      "lat": "41.1170",
+      "lon": "16.8712"
+    },
+    "lineIds": ["1", "1A", ""],
+    "source": "official",
+    "sourceName": "amtab_primary",
+    "confidence": 1.4,
+    "providerStopId": "A-001",
+    "metadata": {
+      "zone": "A"
+    }
+  },
+  {
+    "id": "STOP_002",
+    "name": ""
+  },
+  {
+    "id": "STOP_003",
+    "name": "Policlinico",
+    "source": "cache"
+  }
+]

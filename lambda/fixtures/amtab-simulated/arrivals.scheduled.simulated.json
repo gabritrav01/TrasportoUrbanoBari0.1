@@ -1,0 +1,69 @@
+{
+  "metadata": {
+    "simulated": true,
+    "datasetId": "amtab-simulated-arrivals-scheduled-v1",
+    "generatedAt": "2026-03-09T00:00:00Z",
+    "disclaimer": "Local development fixture. Scheduled arrivals are simulated placeholders, not verified AMTAB official timetable data."
+  },
+  "asOfEpochMs": 1773046800000,
+  "serviceDate": "2026-03-09",
+  "records": [
+    {
+      "simulationTag": "SCH_BASE_1",
+      "stopId": "SIM_STOP_STAZIONE_A",
+      "lineId": "SIM-1",
+      "destinationName": "Porto Bari (sim)",
+      "scheduledTime": "2026-03-09T09:48:00Z",
+      "asOfEpochMs": 1773046800000,
+      "source": "fallback",
+      "sourceName": "simulated_fixture_local",
+      "confidence": 0.67,
+      "metadata": {
+        "simulated": true
+      }
+    },
+    {
+      "simulationTag": "SCH_BASE_2",
+      "stopId": "SIM_STOP_STAZIONE_A",
+      "lineId": "SIM-10",
+      "destinationName": "Centro Citta Bari (sim)",
+      "scheduled_time": "09:56",
+      "asOfEpochMs": 1773046800000,
+      "source": "fallback",
+      "sourceName": "simulated_fixture_local",
+      "confidence": 0.66,
+      "metadata": {
+        "simulated": true,
+        "note": "Uses HH:mm format to exercise parser"
+      }
+    },
+    {
+      "simulationTag": "SCH_BASE_3",
+      "stopId": "SIM_STOP_POLICLINICO",
+      "lineId": "SIM-2",
+      "destinationName": "Campus Universitario Bari (sim)",
+      "scheduledEpochMs": 1773047700000,
+      "asOfEpochMs": 1773046800000,
+      "source": "public",
+      "sourceName": "simulated_fixture_local",
+      "confidence": 0.7,
+      "metadata": {
+        "simulated": true
+      }
+    },
+    {
+      "simulationTag": "SCH_BASE_4",
+      "stopId": "SIM_STOP_STAZIONE_B",
+      "lineId": "SIM-C",
+      "destinationName": "Aeroporto Bari (sim)",
+      "arrivalTime": "2026-03-09T10:12:00Z",
+      "asOfEpochMs": 1773046800000,
+      "source": "public",
+      "sourceName": "simulated_fixture_local",
+      "confidence": 0.68,
+      "metadata": {
+        "simulated": true
+      }
+    }
+  ]
+}

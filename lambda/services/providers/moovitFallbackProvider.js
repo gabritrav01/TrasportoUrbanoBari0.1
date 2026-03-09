@@ -3,16 +3,35 @@
 const { TransportProvider } = require('./transportProvider');
 const { STOPS, DESTINATION_TARGETS, LINES, buildCatalogIndexes } = require('./stubCatalog');
 const {
+  SOURCE_TYPES,
+  PREDICTION_TYPES,
+  normalizeSource,
+  clampConfidence
+} = require('./domain/providerShapes');
+const {
   topRankedMatches,
   haversineDistanceMeters,
   scheduleMinutesFromHeadway,
   sortByEta
 } = require('../../resolvers/transportDataResolver');
 
+function buildFallbackFreshness() {
+  return {
+    ageSec: null,
+    freshnessScore: 0.45,
+    bucket: 'unknown'
+  };
+}
+
 class MoovitFallbackProvider extends TransportProvider {
   constructor(options = {}) {
     super('moovit-fallback-provider');
     this.options = options;
+    this.source = normalizeSource(options.defaultSource, SOURCE_TYPES.FALLBACK);
+    this.sourceName =
+      typeof options.defaultSourceName === 'string' && options.defaultSourceName.trim()
+        ? options.defaultSourceName.trim()
+        : 'moovit_fallback';
     this.catalog = {
       stops: STOPS,
       destinationTargets: DESTINATION_TARGETS,
@@ -82,7 +101,12 @@ class MoovitFallbackProvider extends TransportProvider {
               lineIds: [line.id],
               transfers: 0,
               estimatedMinutes: null,
-              source: this.providerName
+              source: this.source,
+              sourceName: this.sourceName,
+              predictionType: PREDICTION_TYPES.INFERRED,
+              confidence: 0.45,
+              freshness: buildFallbackFreshness(),
+              reliabilityBand: 'disclaimer'
             });
           });
       });
@@ -121,7 +145,13 @@ class MoovitFallbackProvider extends TransportProvider {
       etaMinutes,
       scheduledEpochMs: now + etaMinutes * 60 * 1000,
       predictedEpochMs: null,
-      source: this.providerName,
+      asOfEpochMs: now,
+      source: this.source,
+      sourceName: this.sourceName,
+      predictionType: PREDICTION_TYPES.SCHEDULED,
+      confidence: clampConfidence(0.5, 0.5),
+      freshness: buildFallbackFreshness(),
+      reliabilityBand: 'disclaimer',
       isRealtime: false
     }));
   }

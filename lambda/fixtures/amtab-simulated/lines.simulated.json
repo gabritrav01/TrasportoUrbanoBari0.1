@@ -1,0 +1,82 @@
+{
+  "metadata": {
+    "simulated": true,
+    "datasetId": "amtab-simulated-lines-v1",
+    "generatedAt": "2026-03-09T00:00:00Z",
+    "disclaimer": "Local development fixture. These line definitions are placeholders, not verified AMTAB official data."
+  },
+  "lines": [
+    {
+      "id": "SIM-1",
+      "code": "SIM-1",
+      "aliases": ["linea sim 1", "sim uno"],
+      "destinationTargetId": "SIM_DEST_PORTO",
+      "destinationName": "Porto Bari (sim)",
+      "stopIds": ["SIM_STOP_STAZIONE_A", "SIM_STOP_CENTRO", "SIM_STOP_PORTO"],
+      "firstMinute": 360,
+      "lastMinute": 1380,
+      "headwayMinutes": 15,
+      "source": "fallback",
+      "sourceName": "simulated_fixture_local",
+      "confidence": 0.79,
+      "providerLineId": "SIM-LINE-001",
+      "metadata": {
+        "simulated": true
+      }
+    },
+    {
+      "id": "SIM-2",
+      "code": "SIM-2",
+      "aliases": ["linea sim 2", "sim due"],
+      "destinationTargetId": "SIM_DEST_POLICLINICO",
+      "destinationName": "Policlinico Bari (sim)",
+      "stopIds": ["SIM_STOP_STAZIONE_A", "SIM_STOP_POLICLINICO", "SIM_STOP_CAMPUS"],
+      "firstMinute": 365,
+      "lastMinute": 1375,
+      "headwayMinutes": 12,
+      "source": "fallback",
+      "sourceName": "simulated_fixture_local",
+      "confidence": 0.78,
+      "providerLineId": "SIM-LINE-002",
+      "metadata": {
+        "simulated": true
+      }
+    },
+    {
+      "id": "SIM-10",
+      "code": "SIM-10",
+      "aliases": ["linea sim 10", "sim dieci"],
+      "destinationTargetId": "SIM_DEST_CENTRO",
+      "destinationName": "Centro Citta Bari (sim)",
+      "stopIds": ["SIM_STOP_SANPAOLO", "SIM_STOP_STAZIONE_A", "SIM_STOP_CENTRO"],
+      "firstMinute": 370,
+      "lastMinute": 1390,
+      "headwayMinutes": 18,
+      "source": "fallback",
+      "sourceName": "simulated_fixture_local",
+      "confidence": 0.77,
+      "providerLineId": "SIM-LINE-010",
+      "metadata": {
+        "simulated": true
+      }
+    },
+    {
+      "id": "SIM-C",
+      "code": "SIM-C",
+      "aliases": ["linea sim c", "sim aeroporto"],
+      "destinationTargetId": "SIM_DEST_AEROPORTO",
+      "destinationName": "Aeroporto Bari (sim)",
+      "stopIds": ["SIM_STOP_STAZIONE_B", "SIM_STOP_PORTO", "SIM_STOP_AEROPORTO"],
+      "firstMinute": 390,
+      "lastMinute": 1350,
+      "headwayMinutes": 30,
+      "source": "fallback",
+      "sourceName": "simulated_fixture_local",
+      "confidence": 0.75,
+      "providerLineId": "SIM-LINE-C",
+      "metadata": {
+        "simulated": true
+      }
+    }
+  ]
+}

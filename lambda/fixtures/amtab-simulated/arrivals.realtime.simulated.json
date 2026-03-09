@@ -1,0 +1,85 @@
+{
+  "metadata": {
+    "simulated": true,
+    "datasetId": "amtab-simulated-arrivals-realtime-v1",
+    "generatedAt": "2026-03-09T00:00:00Z",
+    "disclaimer": "Local development fixture. Realtime arrivals are simulated placeholders, not verified AMTAB official data."
+  },
+  "asOfEpochMs": 1773046800000,
+  "records": [
+    {
+      "simulationTag": "RT_BASE_1",
+      "stop_id": "SIM_STOP_STAZIONE_A",
+      "line": "SIM-1",
+      "destination": "Porto Bari (sim)",
+      "predicted_time": "2026-03-09T09:45:00Z",
+      "as_of_epoch_ms": 1773046800000,
+      "source": "public",
+      "sourceName": "simulated_fixture_local",
+      "confidence": 0.74,
+      "metadata": {
+        "simulated": true
+      }
+    },
+    {
+      "simulationTag": "RT_DUPLICATE_FALLBACK",
+      "stopId": "SIM_STOP_STAZIONE_A",
+      "lineId": "SIM-1",
+      "destinationName": "Porto Bari (sim)",
+      "predictedTime": "2026-03-09T09:45:20Z",
+      "asOfEpochMs": 1773046800000,
+      "source": "fallback",
+      "sourceName": "simulated_fixture_local",
+      "confidence": 0.51,
+      "metadata": {
+        "simulated": true,
+        "note": "Intentional near-duplicate for dedupe tests"
+      }
+    },
+    {
+      "simulationTag": "RT_BASE_2",
+      "stopId": "SIM_STOP_POLICLINICO",
+      "lineId": "SIM-2",
+      "destinationName": "Campus Universitario Bari (sim)",
+      "eta_minutes": 4,
+      "predictedEpochMs": 1773047040000,
+      "asOfEpochMs": 1773046800000,
+      "source": "public",
+      "sourceName": "simulated_fixture_local",
+      "confidence": 0.71,
+      "metadata": {
+        "simulated": true
+      }
+    },
+    {
+      "simulationTag": "RT_BASE_3",
+      "stopId": "SIM_STOP_STAZIONE_B",
+      "lineId": "SIM-C",
+      "destinationName": "Aeroporto Bari (sim)",
+      "predictedEpochMs": 1773047700000,
+      "scheduledEpochMs": 1773047400000,
+      "asOfEpochMs": 1773046800000,
+      "source": "public",
+      "sourceName": "simulated_fixture_local",
+      "confidence": 0.69,
+      "metadata": {
+        "simulated": true,
+        "note": "Contains positive delay example"
+      }
+    },
+    {
+      "simulationTag": "RT_BASE_4",
+      "stopId": "SIM_STOP_CENTRO",
+      "lineId": "SIM-10",
+      "destinationName": "Centro Citta Bari (sim)",
+      "minutesToArrival": 9,
+      "timestamp": 1773046800000,
+      "source": "fallback",
+      "sourceName": "simulated_fixture_local",
+      "confidence": 0.58,
+      "metadata": {
+        "simulated": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,130 @@
+{
+  "metadata": {
+    "simulated": true,
+    "datasetId": "amtab-simulated-stops-v1",
+    "generatedAt": "2026-03-09T00:00:00Z",
+    "disclaimer": "Local development fixture. These are simulated placeholder records, not verified AMTAB official data."
+  },
+  "stops": [
+    {
+      "id": "SIM_STOP_STAZIONE_A",
+      "name": "Bari Stazione Centrale lato A (sim)",
+      "aliases": ["stazione sim", "centrale lato a", "stazione a"],
+      "coordinates": { "lat": 41.1175, "lon": 16.8701 },
+      "lineIds": ["SIM-1", "SIM-2", "SIM-10"],
+      "source": "fallback",
+      "sourceName": "simulated_fixture_local",
+      "confidence": 0.78,
+      "providerStopId": "SIM-STOP-001",
+      "metadata": {
+        "simulated": true,
+        "note": "Approximate placeholder location"
+      }
+    },
+    {
+      "id": "SIM_STOP_STAZIONE_B",
+      "name": "Bari Stazione Centrale lato B (sim)",
+      "aliases": ["stazione lato b", "centrale lato b", "stazione b"],
+      "coordinates": { "lat": 41.1173, "lon": 16.8713 },
+      "lineIds": ["SIM-1", "SIM-C"],
+      "source": "fallback",
+      "sourceName": "simulated_fixture_local",
+      "confidence": 0.77,
+      "providerStopId": "SIM-STOP-002",
+      "metadata": {
+        "simulated": true,
+        "note": "Approximate placeholder location"
+      }
+    },
+    {
+      "id": "SIM_STOP_POLICLINICO",
+      "name": "Bari Policlinico ingresso principale (sim)",
+      "aliases": ["policlinico sim", "ospedale sim"],
+      "coordinates": { "lat": 41.1106, "lon": 16.8591 },
+      "lineIds": ["SIM-2"],
+      "source": "fallback",
+      "sourceName": "simulated_fixture_local",
+      "confidence": 0.76,
+      "providerStopId": "SIM-STOP-003",
+      "metadata": {
+        "simulated": true,
+        "note": "Approximate placeholder location"
+      }
+    },
+    {
+      "id": "SIM_STOP_CAMPUS",
+      "name": "Bari Campus Universitario (sim)",
+      "aliases": ["campus sim", "universita sim"],
+      "coordinates": { "lat": 41.105, "lon": 16.8804 },
+      "lineIds": ["SIM-2", "SIM-10"],
+      "source": "fallback",
+      "sourceName": "simulated_fixture_local",
+      "confidence": 0.75,
+      "providerStopId": "SIM-STOP-004",
+      "metadata": {
+        "simulated": true,
+        "note": "Approximate placeholder location"
+      }
+    },
+    {
+      "id": "SIM_STOP_CENTRO",
+      "name": "Bari Centro Civico (sim)",
+      "aliases": ["centro sim", "centro civico"],
+      "coordinates": { "lat": 41.1259, "lon": 16.8718 },
+      "lineIds": ["SIM-1", "SIM-10", "SIM-C"],
+      "source": "fallback",
+      "sourceName": "simulated_fixture_local",
+      "confidence": 0.74,
+      "providerStopId": "SIM-STOP-005",
+      "metadata": {
+        "simulated": true,
+        "note": "Approximate placeholder location"
+      }
+    },
+    {
+      "id": "SIM_STOP_PORTO",
+      "name": "Bari Porto Terminal (sim)",
+      "aliases": ["porto sim", "terminal porto sim"],
+      "coordinates": { "lat": 41.1356, "lon": 16.8682 },
+      "lineIds": ["SIM-1", "SIM-C"],
+      "source": "fallback",
+      "sourceName": "simulated_fixture_local",
+      "confidence": 0.74,
+      "providerStopId": "SIM-STOP-006",
+      "metadata": {
+        "simulated": true,
+        "note": "Approximate placeholder location"
+      }
+    },
+    {
+      "id": "SIM_STOP_SANPAOLO",
+      "name": "Bari Quartiere Nord Ovest (sim)",
+      "aliases": ["quartiere nord ovest", "san paolo sim"],
+      "coordinates": { "lat": 41.1453, "lon": 16.821 },
+      "lineIds": ["SIM-10"],
+      "source": "fallback",
+      "sourceName": "simulated_fixture_local",
+      "confidence": 0.73,
+      "providerStopId": "SIM-STOP-007",
+      "metadata": {
+        "simulated": true,
+        "note": "Approximate placeholder location"
+      }
+    },
+    {
+      "id": "SIM_STOP_AEROPORTO",
+      "name": "Bari Aeroporto capolinea (sim)",
+      "aliases": ["aeroporto sim", "terminal aereo sim"],
+      "coordinates": { "lat": 41.1372, "lon": 16.7608 },
+      "lineIds": ["SIM-C"],
+      "source": "fallback",
+      "sourceName": "simulated_fixture_local",
+      "confidence": 0.72,
+      "providerStopId": "SIM-STOP-008",
+      "metadata": {
+        "simulated": true,
+        "note": "Approximate placeholder location"
+      }
+    }
+  ]
+}

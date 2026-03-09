@@ -1,171 +1,241 @@
 'use strict';
 
 const { TransportProvider } = require('./transportProvider');
-const { STOPS, DESTINATION_TARGETS, LINES, buildCatalogIndexes } = require('./stubCatalog');
-const {
-  normalizeText,
-  topRankedMatches,
-  haversineDistanceMeters,
-  scheduleMinutesFromHeadway,
-  sortByEta
-} = require('../../resolvers/transportDataResolver');
+const { STOPS, DESTINATION_TARGETS, LINES } = require('./stubCatalog');
+const { createAmtabNormalizer } = require('./amtab/normalizer');
+const { createMemoryCacheAdapter } = require('./amtab/cacheAdapter');
+const { createRetryAdapter } = require('./amtab/retryAdapter');
+const { createAmtabApiClient } = require('./amtab/amtabApiClient');
+const { createStopDataSource } = require('./amtab/stopDataSource');
+const { createLinesDataSource } = require('./amtab/linesDataSource');
+const { createDestinationResolverAdapter } = require('./amtab/destinationResolverAdapter');
+const { createArrivalsDataSource } = require('./amtab/arrivalsDataSource');
+const { createRoutePlanner } = require('./amtab/routePlanner');
+
+function createRawCatalog(catalogOverride) {
+  const override = catalogOverride || {};
+  return {
+    stops: Array.isArray(override.stops) ? override.stops : STOPS,
+    destinationTargets: Array.isArray(override.destinationTargets)
+      ? override.destinationTargets
+      : DESTINATION_TARGETS,
+    lines: Array.isArray(override.lines) ? override.lines : LINES
+  };
+}
+
+function createNormalizedCatalog(rawCatalog, normalizer) {
+  return {
+    stops: (rawCatalog.stops || []).map((stop) => normalizer.normalizeStop(stop)).filter(Boolean),
+    destinationTargets: (rawCatalog.destinationTargets || [])
+      .map((destinationTarget) => normalizer.normalizeDestinationTarget(destinationTarget))
+      .filter(Boolean),
+    lines: (rawCatalog.lines || []).map((line) => normalizer.normalizeLine(line)).filter(Boolean)
+  };
+}
 
 class AmtabProvider extends TransportProvider {
   constructor(options = {}) {
     super('amtab-provider');
     this.options = options;
-    this.catalog = {
-      stops: STOPS,
-      destinationTargets: DESTINATION_TARGETS,
-      lines: LINES
-    };
-    this.indexes = buildCatalogIndexes();
+    this.cachePolicy = options.cachePolicy || {};
+    this.resiliencePolicy = options.resiliencePolicy || {};
+    this.reliabilityPolicy = options.reliabilityPolicy || {};
+    this.defaultSource = typeof options.defaultSource === 'string' ? options.defaultSource : 'fallback';
+    this.defaultSourceName =
+      typeof options.defaultSourceName === 'string' ? options.defaultSourceName : this.providerName;
+
+    this.normalizer = options.normalizer || createAmtabNormalizer();
+    this.cacheAdapter =
+      options.cacheAdapter ||
+      createMemoryCacheAdapter({
+        defaultTtlMs:
+          this.cachePolicy.adapter && typeof this.cachePolicy.adapter.defaultTtlMs === 'number'
+            ? this.cachePolicy.adapter.defaultTtlMs
+            : 30000,
+        maxEntries:
+          this.cachePolicy.adapter && typeof this.cachePolicy.adapter.maxEntries === 'number'
+            ? this.cachePolicy.adapter.maxEntries
+            : 2500
+      });
+    this.retryAdapter =
+      options.retryAdapter ||
+      createRetryAdapter({
+        maxAttempts: typeof options.maxAttempts === 'number' ? options.maxAttempts : 2,
+        baseDelayMs: typeof options.retryBaseDelayMs === 'number' ? options.retryBaseDelayMs : 120
+      });
+
+    this.apiClient =
+      options.apiClient ||
+      createAmtabApiClient({
+        searchStops: options.searchStops,
+        nearestStops: options.nearestStops,
+        searchLines: options.searchLines,
+        getLinesServingStop: options.getLinesServingStop,
+        resolveDestination: options.resolveDestination,
+        findRoutes: options.findRoutes,
+        getStopArrivals: options.getStopArrivals,
+        getRealtimePredictions: options.getRealtimePredictions,
+        getScheduledArrivals: options.getScheduledArrivals,
+        ping: options.ping
+      });
+
+    const rawCatalog = createRawCatalog(options.catalog);
+    this.catalog = createNormalizedCatalog(rawCatalog, this.normalizer);
+
+    this.stopDataSource =
+      options.stopDataSource ||
+      createStopDataSource({
+        catalog: this.catalog,
+        normalizer: this.normalizer,
+        cacheAdapter: this.cacheAdapter,
+        apiClient: this.apiClient,
+        retryAdapter: this.retryAdapter,
+        defaultLimit: typeof options.nearestStopsLimit === 'number' ? options.nearestStopsLimit : 5,
+        searchTtlMs:
+          this.cachePolicy.stop && typeof this.cachePolicy.stop.searchTtlMs === 'number'
+            ? this.cachePolicy.stop.searchTtlMs
+            : undefined,
+        nearestTtlMs:
+          this.cachePolicy.stop && typeof this.cachePolicy.stop.nearestTtlMs === 'number'
+            ? this.cachePolicy.stop.nearestTtlMs
+            : undefined
+      });
+
+    this.linesDataSource =
+      options.linesDataSource ||
+      createLinesDataSource({
+        catalog: this.catalog,
+        normalizer: this.normalizer,
+        cacheAdapter: this.cacheAdapter,
+        apiClient: this.apiClient,
+        retryAdapter: this.retryAdapter,
+        searchTtlMs:
+          this.cachePolicy.line && typeof this.cachePolicy.line.searchTtlMs === 'number'
+            ? this.cachePolicy.line.searchTtlMs
+            : undefined,
+        byStopTtlMs:
+          this.cachePolicy.line && typeof this.cachePolicy.line.byStopTtlMs === 'number'
+            ? this.cachePolicy.line.byStopTtlMs
+            : undefined
+      });
+
+    this.destinationResolverAdapter =
+      options.destinationResolverAdapter ||
+      createDestinationResolverAdapter({
+        catalog: this.catalog,
+        normalizer: this.normalizer,
+        cacheAdapter: this.cacheAdapter,
+        apiClient: this.apiClient,
+        retryAdapter: this.retryAdapter,
+        resolveTtlMs:
+          this.cachePolicy.destination && typeof this.cachePolicy.destination.resolveTtlMs === 'number'
+            ? this.cachePolicy.destination.resolveTtlMs
+            : undefined
+      });
+
+    this.arrivalsDataSource =
+      options.arrivalsDataSource ||
+      createArrivalsDataSource({
+        normalizer: this.normalizer,
+        cacheAdapter: this.cacheAdapter,
+        apiClient: this.apiClient,
+        retryAdapter: this.retryAdapter,
+        linesDataSource: this.linesDataSource,
+        providerName: this.providerName,
+        now: typeof options.now === 'function' ? options.now : undefined,
+        realtimeTtlMs:
+          this.cachePolicy.arrival && typeof this.cachePolicy.arrival.realtimeTtlMs === 'number'
+            ? this.cachePolicy.arrival.realtimeTtlMs
+            : undefined,
+        scheduledTtlMs:
+          this.cachePolicy.arrival && typeof this.cachePolicy.arrival.scheduledTtlMs === 'number'
+            ? this.cachePolicy.arrival.scheduledTtlMs
+            : undefined,
+        stopArrivalsTtlMs:
+          this.cachePolicy.arrival && typeof this.cachePolicy.arrival.stopArrivalsTtlMs === 'number'
+            ? this.cachePolicy.arrival.stopArrivalsTtlMs
+            : undefined,
+        defaultSource: this.defaultSource,
+        defaultSourceName: this.defaultSourceName,
+        resiliencePolicy: this.resiliencePolicy,
+        reliabilityPolicy: this.reliabilityPolicy
+      });
+
+    this.routePlanner =
+      options.routePlanner ||
+      createRoutePlanner({
+        normalizer: this.normalizer,
+        cacheAdapter: this.cacheAdapter,
+        apiClient: this.apiClient,
+        retryAdapter: this.retryAdapter,
+        linesDataSource: this.linesDataSource,
+        providerName: this.providerName
+      });
   }
 
   async searchStops(query) {
-    return topRankedMatches(this.catalog.stops, query, (stop) => [stop.name].concat(stop.aliases || []));
+    return this.stopDataSource.searchStops(query);
   }
 
   async nearestStops(lat, lon) {
-    if (typeof lat !== 'number' || typeof lon !== 'number') {
-      return [];
-    }
-
-    return this.catalog.stops
-      .map((stop) => ({
-        stop,
-        distanceMeters: Math.round(haversineDistanceMeters(lat, lon, stop.coordinates.lat, stop.coordinates.lon))
-      }))
-      .sort((a, b) => a.distanceMeters - b.distanceMeters)
-      .slice(0, 5);
+    return this.stopDataSource.nearestStops(lat, lon);
   }
 
   async getStopArrivals(stopId) {
-    const lines = await this.getLinesServingStop(stopId);
-    const arrivals = [];
-
-    for (const line of lines) {
-      const realtime = await this.getRealtimePredictions(stopId, line.id);
-      if (realtime.length) {
-        arrivals.push(...realtime);
-        continue;
-      }
-
-      const scheduled = await this.getScheduledArrivals(stopId, line.id);
-      arrivals.push(...scheduled);
-    }
-
-    return sortByEta(arrivals);
+    return this.arrivalsDataSource.getStopArrivals(stopId);
   }
 
   async getLinesServingStop(stopId) {
-    return this.catalog.lines.filter((line) => line.stopIds.includes(stopId));
+    return this.linesDataSource.getLinesServingStop(stopId);
   }
 
   async resolveDestination(query) {
-    return topRankedMatches(
-      this.catalog.destinationTargets,
-      query,
-      (destinationTarget) => [destinationTarget.name].concat(destinationTarget.aliases || [])
-    );
+    return this.destinationResolverAdapter.resolveDestination(query);
   }
 
   async findRoutes(originStopIds, destinationTargetIds) {
-    const originIds = Array.isArray(originStopIds) ? originStopIds : [];
-    const destinationIds = Array.isArray(destinationTargetIds) ? destinationTargetIds : [];
-    if (!originIds.length || !destinationIds.length) {
-      return [];
-    }
-
-    const routes = [];
-    originIds.forEach((originStopId) => {
-      destinationIds.forEach((destinationTargetId) => {
-        const matchingLines = this.catalog.lines.filter(
-          (line) => line.destinationTargetId === destinationTargetId && line.stopIds.includes(originStopId)
-        );
-
-        matchingLines.forEach((line) => {
-          routes.push({
-            id: `route:${originStopId}:${destinationTargetId}:${line.id}`,
-            originStopId,
-            destinationTargetId,
-            lineIds: [line.id],
-            transfers: 0,
-            estimatedMinutes: null,
-            source: this.providerName
-          });
-        });
-      });
-    });
-
-    return routes;
+    return this.routePlanner.findRoutes(originStopIds, destinationTargetIds);
   }
 
   async getRealtimePredictions(stopId, lineId) {
-    // TODO(AMTAB_REALTIME): integrare endpoint ufficiale realtime AMTAB/MUVT.
-    // Esempio placeholder endpoint:
-    // GET ${AMTAB_API_BASE_URL}/realtime/predictions?stopId=<STOP_ID>&lineId=<LINE_ID>
-    // Header: Authorization Bearer ${AMTAB_API_TOKEN}
-    // Mapping richiesto:
-    //   expectedTime -> predictedEpochMs
-    //   plannedTime  -> scheduledEpochMs
-    //   destination  -> destinationName / destinationTargetId
-    void stopId;
-    void lineId;
-    return [];
+    return this.arrivalsDataSource.getRealtimePredictions(stopId, lineId);
   }
 
   async getScheduledArrivals(stopId, lineId) {
-    const line = this.indexes.lineById.get(lineId);
-    if (!line || !line.stopIds.includes(stopId)) {
-      return [];
-    }
-
-    const etaMinutesList = scheduleMinutesFromHeadway({
-      firstMinute: line.firstMinute,
-      lastMinute: line.lastMinute,
-      headwayMinutes: line.headwayMinutes,
-      referenceDate: new Date(),
-      limit: 3
-    });
-
-    const now = Date.now();
-    return etaMinutesList.map((etaMinutes) => ({
-      stopId,
-      lineId: line.id,
-      destinationTargetId: line.destinationTargetId,
-      destinationName: line.destinationName,
-      etaMinutes,
-      scheduledEpochMs: now + etaMinutes * 60 * 1000,
-      predictedEpochMs: null,
-      source: this.providerName,
-      isRealtime: false
-    }));
+    return this.arrivalsDataSource.getScheduledArrivals(stopId, lineId);
   }
 
   async searchLines(query) {
-    return topRankedMatches(this.catalog.lines, query, (line) => [line.id].concat(line.aliases || []));
+    return this.linesDataSource.searchLines(query);
   }
 
   getStopById(stopId) {
-    return this.indexes.stopById.get(stopId) || null;
+    return this.stopDataSource.getStopById(stopId);
   }
 
   getDestinationById(destinationId) {
-    return this.indexes.destinationById.get(destinationId) || null;
+    return this.destinationResolverAdapter.getDestinationById(destinationId);
   }
 
   getLineById(lineId) {
-    return this.indexes.lineById.get(lineId) || null;
+    return this.linesDataSource.getLineById(lineId);
   }
 
   getCatalog() {
-    return this.catalog;
+    return {
+      stops: this.stopDataSource.listStops(),
+      destinationTargets: this.destinationResolverAdapter.listDestinationTargets(),
+      lines: this.linesDataSource.listLines()
+    };
   }
 
   async ping() {
-    // TODO(AMTAB_HEALTHCHECK): verificare endpoint ufficiale disponibilita API.
-    return true;
+    try {
+      return this.apiClient.ping();
+    } catch (error) {
+      console.error('AMTAB provider ping failed', error);
+      return false;
+    }
   }
 
   static create(options) {

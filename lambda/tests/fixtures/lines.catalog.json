@@ -1,0 +1,16 @@
+{
+  "lines": [
+    {
+      "id": "1A",
+      "code": "1A",
+      "destinationTargetId": "DST_CENTRO",
+      "destinationName": "Centro",
+      "stopIds": ["STOP_100", "STOP_101"],
+      "firstMinute": 540,
+      "lastMinute": 1410,
+      "headwayMinutes": 15,
+      "source": "official",
+      "sourceName": "amtab_primary"
+    }
+  ]
+}

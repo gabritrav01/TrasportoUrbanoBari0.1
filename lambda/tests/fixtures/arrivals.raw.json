@@ -1,0 +1,47 @@
+{
+  "canonicalRealtime": {
+    "stop_id": " stop 100 ",
+    "line": " 1 a ",
+    "destination": "Stazione Centrale",
+    "predicted_time": "2026-03-09T10:05:00Z",
+    "as_of_epoch_ms": "2026-03-09T10:00:00Z",
+    "source": "official",
+    "sourceName": "amtab_primary"
+  },
+  "clockScheduled": {
+    "stopId": "STOP-100",
+    "lineId": "2",
+    "destinationName": "Poggiofranco",
+    "scheduled_time": "10:15",
+    "asOfEpochMs": "2026-03-09T09:00:00Z",
+    "source": "public"
+  },
+  "missingIdentifiers": {
+    "destination": "Centro",
+    "predictedTime": "2026-03-09T10:05:00Z"
+  },
+  "duplicateOfficial": {
+    "stopId": "STOP_100",
+    "lineId": "1A",
+    "destinationName": "Centro",
+    "predictedTime": "2026-03-09T10:08:15Z",
+    "asOfEpochMs": "2026-03-09T10:00:00Z",
+    "source": "official",
+    "confidence": 0.95
+  },
+  "duplicateFallback": {
+    "stopId": "STOP_100",
+    "lineId": "1A",
+    "destinationName": "Centro",
+    "predictedTime": "2026-03-09T10:08:45Z",
+    "asOfEpochMs": "2026-03-09T10:00:00Z",
+    "source": "fallback",
+    "confidence": 0.4
+  },
+  "staleWithoutTimestamp": {
+    "stopId": "STOP_100",
+    "lineId": "1A",
+    "eta_minutes": -12,
+    "source": "official"
+  }
+}

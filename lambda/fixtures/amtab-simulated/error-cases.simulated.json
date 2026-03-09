@@ -1,0 +1,108 @@
+{
+  "metadata": {
+    "simulated": true,
+    "datasetId": "amtab-simulated-error-cases-v1",
+    "generatedAt": "2026-03-09T00:00:00Z",
+    "disclaimer": "Local development fixture. Error cases are synthetic and intended for resilience, logging and fallback testing."
+  },
+  "remoteErrors": [
+    {
+      "id": "ERR_TIMEOUT_REALTIME",
+      "phase": "getRealtimePredictions",
+      "error": {
+        "code": "TIMEOUT",
+        "message": "Simulated timeout from realtime endpoint",
+        "retriable": true,
+        "source": "fallback",
+        "sourceName": "simulated_fixture_local",
+        "httpStatus": 504
+      },
+      "expectedBehavior": ["retry", "fallback_to_scheduled", "voice_disclaimer"]
+    },
+    {
+      "id": "ERR_RATE_LIMIT",
+      "phase": "getStopArrivals",
+      "error": {
+        "code": "RATE_LIMIT",
+        "message": "Simulated throttling from remote source",
+        "retriable": true,
+        "source": "fallback",
+        "sourceName": "simulated_fixture_local",
+        "httpStatus": 429
+      },
+      "expectedBehavior": ["retry_with_backoff", "serve_cached_if_present"]
+    },
+    {
+      "id": "ERR_INVALID_PAYLOAD",
+      "phase": "normalizeBatch",
+      "error": {
+        "code": "INVALID_PAYLOAD",
+        "message": "Simulated invalid payload schema",
+        "retriable": false,
+        "source": "fallback",
+        "sourceName": "simulated_fixture_local",
+        "httpStatus": 200
+      },
+      "expectedBehavior": ["drop_record", "warn_log", "continue_with_remaining_records"]
+    }
+  ],
+  "malformedRecords": {
+    "stops": [
+      {
+        "id": "",
+        "name": "Missing id stop (sim)",
+        "source": "fallback"
+      },
+      {
+        "id": "SIM_STOP_INVALID_COORD",
+        "name": "Invalid coordinates stop (sim)",
+        "coordinates": { "lat": "not-a-number", "lon": 16.88 },
+        "source": "fallback"
+      }
+    ],
+    "lines": [
+      {
+        "id": "SIM-LINE-BROKEN",
+        "code": "",
+        "destinationTargetId": "SIM_DEST_UNKNOWN",
+        "stopIds": [],
+        "source": "fallback"
+      }
+    ],
+    "arrivals": [
+      {
+        "stopId": "SIM_STOP_STAZIONE_A",
+        "lineId": "SIM-1",
+        "eta_minutes": -12,
+        "source": "fallback"
+      },
+      {
+        "lineId": "SIM-2",
+        "predictedTime": "2026-03-09T09:48:00Z",
+        "source": "fallback"
+      }
+    ]
+  },
+  "contradictoryArrivals": [
+    {
+      "id": "CONTR_1_PUBLIC",
+      "stopId": "SIM_STOP_STAZIONE_A",
+      "lineId": "SIM-1",
+      "destinationName": "Porto Bari (sim)",
+      "predictedTime": "2026-03-09T09:48:00Z",
+      "asOfEpochMs": 1773046800000,
+      "source": "public",
+      "confidence": 0.69
+    },
+    {
+      "id": "CONTR_1_FALLBACK",
+      "stopId": "SIM_STOP_STAZIONE_A",
+      "lineId": "SIM-1",
+      "destinationName": "Porto Bari (sim)",
+      "predictedTime": "2026-03-09T10:22:00Z",
+      "asOfEpochMs": 1773046800000,
+      "source": "fallback",
+      "confidence": 0.5
+    }
+  ]
+}

@@ -9,12 +9,14 @@
     "node": ">=18"
   },
   "scripts": {
-    "lint": "node -e \"const fs=require('fs');const path=require('path');const cp=require('child_process');function walk(dir){for(const entry of fs.readdirSync(dir,{withFileTypes:true})){const full=path.join(dir,entry.name);if(entry.isDirectory())walk(full);else if(full.endsWith('.js'))cp.execFileSync(process.execPath,['--check',full],{stdio:'inherit'});}}walk('.');\"",
-    "test": "node --test"
+    "lint": "node -e \"const fs=require('fs');const path=require('path');const cp=require('child_process');const skip=new Set(['node_modules','.git']);function walk(dir){for(const entry of fs.readdirSync(dir,{withFileTypes:true})){if(entry.isDirectory()){if(skip.has(entry.name))continue;walk(path.join(dir,entry.name));continue;}const full=path.join(dir,entry.name);if(full.endsWith('.js'))cp.execFileSync(process.execPath,['--check',full],{stdio:'inherit'});}}walk('.');\"",
+    "test": "jest --runInBand"
   },
   "dependencies": {
     "ask-sdk-core": "^2.14.0",
     "ask-sdk-dynamodb-persistence-adapter": "^2.14.0"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
 }

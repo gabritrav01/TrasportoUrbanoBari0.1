@@ -1,0 +1,54 @@
+{
+  "metadata": {
+    "simulated": true,
+    "datasetId": "amtab-simulated-ambiguity-cases-v1",
+    "generatedAt": "2026-03-09T00:00:00Z",
+    "disclaimer": "Local development fixture. Ambiguity cases are synthetic and designed for resolver behavior tests."
+  },
+  "cases": [
+    {
+      "id": "AMB_STOP_STAZIONE",
+      "query": "stazione",
+      "entityType": "stop",
+      "candidateIds": ["SIM_STOP_STAZIONE_A", "SIM_STOP_STAZIONE_B"],
+      "whyAmbiguous": "Token appears in multiple stop names",
+      "expectedBehavior": "ask_clarification",
+      "metadata": {
+        "simulated": true
+      }
+    },
+    {
+      "id": "AMB_DEST_CENTRO",
+      "query": "centro",
+      "entityType": "destination",
+      "candidateIds": ["SIM_DEST_CENTRO", "SIM_DEST_STAZIONE"],
+      "whyAmbiguous": "User query matches overlapping aliases",
+      "expectedBehavior": "ask_clarification",
+      "metadata": {
+        "simulated": true
+      }
+    },
+    {
+      "id": "AMB_LINE_1",
+      "query": "sim uno",
+      "entityType": "line",
+      "candidateIds": ["SIM-1", "SIM-10"],
+      "whyAmbiguous": "Spoken form may match both SIM-1 and SIM-10",
+      "expectedBehavior": "ask_clarification",
+      "metadata": {
+        "simulated": true
+      }
+    },
+    {
+      "id": "AMB_STOP_DEST_SAME_TOKEN",
+      "query": "aeroporto",
+      "entityType": "mixed",
+      "candidateIds": ["SIM_STOP_AEROPORTO", "SIM_DEST_AEROPORTO"],
+      "whyAmbiguous": "Same token can map to stop or destination target",
+      "expectedBehavior": "prefer_intent_context_or_ask",
+      "metadata": {
+        "simulated": true
+      }
+    }
+  ]
+}

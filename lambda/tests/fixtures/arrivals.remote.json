@@ -1,0 +1,48 @@
+{
+  "realtimeUnsorted": [
+    {
+      "stop_id": "STOP_100",
+      "line": "1A",
+      "destination": "Stazione Centrale",
+      "predicted_time": "2026-03-09T10:08:00Z",
+      "as_of_epoch_ms": "2026-03-09T10:00:00Z",
+      "source": "official"
+    },
+    {
+      "stopId": "STOP_100",
+      "lineId": "1A",
+      "destinationName": "Stazione Centrale",
+      "predictedTime": "2026-03-09T10:05:00Z",
+      "asOfEpochMs": "2026-03-09T10:00:00Z",
+      "source": "official"
+    }
+  ],
+  "scheduledSingle": [
+    {
+      "stopId": "STOP_100",
+      "lineId": "1A",
+      "destinationName": "Centro",
+      "scheduledTime": "2026-03-09T10:12:00Z",
+      "asOfEpochMs": "2026-03-09T10:00:00Z",
+      "source": "official"
+    }
+  ],
+  "duplicateRealtime": [
+    {
+      "stopId": "STOP_100",
+      "lineId": "1A",
+      "destinationName": "Centro",
+      "predictedTime": "2026-03-09T10:06:15Z",
+      "asOfEpochMs": "2026-03-09T10:00:00Z",
+      "source": "official"
+    },
+    {
+      "stopId": "STOP_100",
+      "lineId": "1A",
+      "destinationName": "Centro",
+      "predictedTime": "2026-03-09T10:06:45Z",
+      "asOfEpochMs": "2026-03-09T10:00:00Z",
+      "source": "fallback"
+    }
+  ]
+}
