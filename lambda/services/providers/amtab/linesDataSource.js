@@ -1,6 +1,7 @@
 'use strict';
 
 const { topRankedMatches } = require('../../../resolvers/transportDataResolver');
+const { createResilientExecutor, logResilienceFailure } = require('./resilienceHelpers');
 
 function createNoopCacheAdapter() {
   return {
@@ -35,20 +36,46 @@ function createLinesDataSource(dependencies = {}) {
   const cacheAdapter = dependencies.cacheAdapter || createNoopCacheAdapter();
   const apiClient = dependencies.apiClient || {};
   const retryAdapter = dependencies.retryAdapter || null;
+  const logger = dependencies.logger || console;
+  const resiliencePolicy = dependencies.resiliencePolicy || {};
   const searchTtlMs = typeof dependencies.searchTtlMs === 'number' ? dependencies.searchTtlMs : 60000;
   const byStopTtlMs = typeof dependencies.byStopTtlMs === 'number' ? dependencies.byStopTtlMs : 30000;
+  const searchStaleIfErrorTtlMs =
+    typeof dependencies.searchStaleIfErrorTtlMs === 'number'
+      ? dependencies.searchStaleIfErrorTtlMs
+      : 10 * 60 * 1000;
+  const byStopStaleIfErrorTtlMs =
+    typeof dependencies.byStopStaleIfErrorTtlMs === 'number'
+      ? dependencies.byStopStaleIfErrorTtlMs
+      : 3 * 60 * 1000;
+  const searchNegativeTtlMs =
+    typeof dependencies.searchNegativeTtlMs === 'number' ? dependencies.searchNegativeTtlMs : 25 * 1000;
+  const byStopNegativeTtlMs =
+    typeof dependencies.byStopNegativeTtlMs === 'number' ? dependencies.byStopNegativeTtlMs : 15 * 1000;
   const rawLines = Array.isArray(dependencies.catalog && dependencies.catalog.lines) ? dependencies.catalog.lines : [];
   const catalogLines = rawLines.map((line) => normalizer.normalizeLine(line)).filter(Boolean);
   const lines = [];
   const lineById = new Map();
   const lineIdsByStop = new Map();
-
-  function runWithRetry(operationName, operationFn) {
-    if (retryAdapter && typeof retryAdapter.execute === 'function') {
-      return retryAdapter.execute(operationName, operationFn);
-    }
-    return operationFn();
-  }
+  const resilientExecutor = createResilientExecutor({
+    logger,
+    retryAdapter,
+    resiliencePolicy
+  });
+  const searchCachePolicy = {
+    ttlMs: searchTtlMs,
+    staleIfErrorTtlMs: searchStaleIfErrorTtlMs,
+    negativeTtlMs: searchNegativeTtlMs,
+    inFlightDedupe: true,
+    isNegativeValue: (value) => Array.isArray(value) && value.length === 0
+  };
+  const byStopCachePolicy = {
+    ttlMs: byStopTtlMs,
+    staleIfErrorTtlMs: byStopStaleIfErrorTtlMs,
+    negativeTtlMs: byStopNegativeTtlMs,
+    inFlightDedupe: true,
+    isNegativeValue: (value) => Array.isArray(value) && value.length === 0
+  };
 
   function rebuildStopIndex() {
     lineIdsByStop.clear();
@@ -85,13 +112,25 @@ function createLinesDataSource(dependencies = {}) {
     }
 
     try {
-      const result = await runWithRetry(`amtab.linesDataSource.${methodName}`, () => method(...args));
+      const result = await resilientExecutor.run({
+        operationName: `amtab.linesDataSource.${methodName}`,
+        category: 'staticLookup',
+        executeFn: () => method(...args)
+      });
       if (!Array.isArray(result)) {
         return [];
       }
       return dedupeById(result.map((entry) => normalizer.normalizeLine(entry)).filter(Boolean));
     } catch (error) {
-      console.error(`AMTAB linesDataSource remote call failed: ${methodName}`, error);
+      logResilienceFailure(
+        logger,
+        `[AMTAB][linesDataSource.${methodName}] remote call failed -> using catalog fallback`,
+        error,
+        {
+          operationName: `amtab.linesDataSource.${methodName}`,
+          category: 'staticLookup'
+        }
+      );
       return [];
     }
   }
@@ -122,7 +161,7 @@ function createLinesDataSource(dependencies = {}) {
         }
         return topRankedMatches(lines, normalizedQuery, (line) => [line.id].concat(line.aliases || []));
       },
-      searchTtlMs
+      searchCachePolicy
     );
   }
 
@@ -148,7 +187,7 @@ function createLinesDataSource(dependencies = {}) {
           .map((lineId) => lineById.get(lineId))
           .filter(Boolean);
       },
-      byStopTtlMs
+      byStopCachePolicy
     );
   }
 

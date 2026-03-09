@@ -50,49 +50,57 @@ describe('Reliability scoring', () => {
     });
 
     expect(reliability.reliabilityBand).toBe('discard');
-    expect(reliability.confidence).toBeLessThan(0.6);
+    expect(reliability.confidence).toBeLessThan(0.62);
   });
 
   test('supports custom thresholds in band classification', () => {
-    const thresholds = { direct: 0.9, disclaimer: 0.7 };
+    const thresholds = { direct: 0.9, caution: 0.7, degraded: 0.5 };
 
     expect(classifyReliabilityBand(0.95, thresholds)).toBe('direct');
-    expect(classifyReliabilityBand(0.75, thresholds)).toBe('disclaimer');
-    expect(classifyReliabilityBand(0.65, thresholds)).toBe('discard');
+    expect(classifyReliabilityBand(0.75, thresholds)).toBe('caution');
+    expect(classifyReliabilityBand(0.55, thresholds)).toBe('degraded');
+    expect(classifyReliabilityBand(0.35, thresholds)).toBe('discard');
   });
 
-  test('filters records into direct, disclaimer and discarded buckets', () => {
+  test('filters records into direct, caution, degraded and discarded buckets', () => {
     const directRecord = buildBaseArrival();
-    const disclaimerRecord = buildBaseArrival({
-      source: 'fallback',
+    const cautionRecord = buildBaseArrival({
       predictionType: 'scheduled',
       predictedEpochMs: null,
+      source: 'official',
+      asOfEpochMs: FIXED_NOW - 10 * 60 * 1000
+    });
+    const degradedRecord = buildBaseArrival({
+      source: 'fallback',
+      predictionType: 'inferred',
+      predictedEpochMs: null,
       etaMinutes: null,
-      asOfEpochMs: FIXED_NOW - 1000 * 1000
+      asOfEpochMs: FIXED_NOW - 8 * 60 * 1000
     });
     const discardRecord = buildBaseArrival({
       source: 'fallback',
-      predictionType: 'scheduled',
+      predictionType: 'inferred',
       predictedEpochMs: null,
       etaMinutes: null,
       asOfEpochMs: FIXED_NOW - 4 * 60 * 60 * 1000
     });
 
-    const result = filterRecordsByReliability([directRecord, disclaimerRecord, discardRecord], {
+    const result = filterRecordsByReliability([directRecord, cautionRecord, degradedRecord, discardRecord], {
       recordType: 'arrival',
       nowEpochMs: FIXED_NOW
     });
 
     expect(result.direct).toHaveLength(1);
-    expect(result.disclaimer).toHaveLength(1);
+    expect(result.caution).toHaveLength(1);
+    expect(result.degraded).toHaveLength(1);
     expect(result.discarded).toHaveLength(1);
   });
 
-  test('builds Alexa hint for disclaimer realtime data', () => {
+  test('builds Alexa hint for caution realtime data', () => {
     const hint = buildAlexaReliabilityHint([
       {
         reliability: {
-          reliabilityBand: 'disclaimer',
+          reliabilityBand: 'caution',
           predictionType: 'realtime'
         }
       }

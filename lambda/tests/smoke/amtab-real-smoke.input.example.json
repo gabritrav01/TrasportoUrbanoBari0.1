@@ -1,0 +1,21 @@
+{
+  "_description": "Input di esempio per smoke test runtime reale AMTAB (modifica query/id secondo il tuo caso).",
+  "fallbackQueries": {
+    "stops": ["stazione", "centrale", "policlinico"],
+    "lines": ["1", "2", "3"],
+    "destinations": ["stazione", "policlinico", "universita"]
+  },
+  "nextArrivalsByStop": {
+    "stopQuery": "stazione",
+    "lineQuery": "1"
+  },
+  "lineDirectionArrivals": {
+    "lineQuery": "1",
+    "stopQuery": "stazione",
+    "destinationQuery": "stazione"
+  },
+  "routesToDestination": {
+    "destinationQuery": "policlinico",
+    "fromStopQuery": "stazione"
+  }
+}

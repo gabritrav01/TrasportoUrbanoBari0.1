@@ -1,5 +1,7 @@
 'use strict';
 
+const { createResilientExecutor, logResilienceFailure } = require('./resilienceHelpers');
+
 function createNoopCacheAdapter() {
   return {
     get() {
@@ -40,15 +42,15 @@ function createRoutePlanner(dependencies = {}) {
   const cacheAdapter = dependencies.cacheAdapter || createNoopCacheAdapter();
   const apiClient = dependencies.apiClient || {};
   const retryAdapter = dependencies.retryAdapter || null;
+  const logger = dependencies.logger || console;
+  const resiliencePolicy = dependencies.resiliencePolicy || {};
   const linesDataSource = dependencies.linesDataSource;
   const providerName = dependencies.providerName || 'amtab-provider';
-
-  function runWithRetry(operationName, operationFn) {
-    if (retryAdapter && typeof retryAdapter.execute === 'function') {
-      return retryAdapter.execute(operationName, operationFn);
-    }
-    return operationFn();
-  }
+  const resilientExecutor = createResilientExecutor({
+    logger,
+    retryAdapter,
+    resiliencePolicy
+  });
 
   async function safeRemoteRoutes(originStopIds, destinationTargetIds) {
     const method = apiClient && apiClient.findRoutes;
@@ -57,7 +59,11 @@ function createRoutePlanner(dependencies = {}) {
     }
 
     try {
-      const result = await runWithRetry('amtab.routePlanner.findRoutes', () => method(originStopIds, destinationTargetIds));
+      const result = await resilientExecutor.run({
+        operationName: 'amtab.routePlanner.findRoutes',
+        category: 'scheduled',
+        executeFn: () => method(originStopIds, destinationTargetIds)
+      });
       if (!Array.isArray(result)) {
         return [];
       }
@@ -67,7 +73,15 @@ function createRoutePlanner(dependencies = {}) {
           .filter(Boolean)
       );
     } catch (error) {
-      console.error('AMTAB routePlanner remote call failed: findRoutes', error);
+      logResilienceFailure(
+        logger,
+        '[AMTAB][routePlanner.findRoutes] remote call failed -> using direct catalog routes',
+        error,
+        {
+          operationName: 'amtab.routePlanner.findRoutes',
+          category: 'scheduled'
+        }
+      );
       return [];
     }
   }

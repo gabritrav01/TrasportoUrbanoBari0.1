@@ -7,6 +7,15 @@ const {
   normalizePredictionType,
   clampConfidence
 } = require('./providerShapes');
+const {
+  RELIABILITY_BANDS,
+  DEFAULT_THRESHOLDS,
+  normalizeReliabilityBand,
+  normalizeFreshness,
+  resolveThresholds,
+  classifyBandByConfidence,
+  applyReliabilityPolicy
+} = require('./qualityScoring');
 
 const RELIABILITY_WEIGHTS = Object.freeze({
   source: 0.35,
@@ -22,8 +31,9 @@ const SOURCE_SCORE = Object.freeze({
 });
 
 const THRESHOLDS = Object.freeze({
-  DIRECT: 0.8,
-  DISCLAIMER: 0.6
+  DIRECT: DEFAULT_THRESHOLDS.direct,
+  CAUTION: DEFAULT_THRESHOLDS.caution,
+  DEGRADED: DEFAULT_THRESHOLDS.degraded
 });
 
 const FRESHNESS_PROFILES = Object.freeze({
@@ -342,26 +352,11 @@ function applyHardGuards(baseScore, components, options = {}) {
   return clamp01(adjusted);
 }
 
-function resolveThresholds(thresholds) {
-  const direct = thresholds && typeof thresholds.direct === 'number' ? thresholds.direct : THRESHOLDS.DIRECT;
-  const disclaimer =
-    thresholds && typeof thresholds.disclaimer === 'number' ? thresholds.disclaimer : THRESHOLDS.DISCLAIMER;
-
-  return {
-    direct,
-    disclaimer
-  };
-}
-
 function classifyReliabilityBand(confidence, thresholds) {
-  const resolvedThresholds = resolveThresholds(thresholds);
-  if (confidence >= resolvedThresholds.direct) {
-    return 'direct';
-  }
-  if (confidence >= resolvedThresholds.disclaimer) {
-    return 'disclaimer';
-  }
-  return 'discard';
+  return normalizeReliabilityBand(
+    classifyBandByConfidence(confidence, resolveThresholds(thresholds)),
+    RELIABILITY_BANDS.CAUTION
+  );
 }
 
 function scoreRecordReliability(record, options = {}) {
@@ -388,12 +383,22 @@ function scoreRecordReliability(record, options = {}) {
   );
 
   const predictionType = toPredictionType(record && record.predictionType);
-  const band = classifyReliabilityBand(finalConfidence, options.thresholds);
+  const confidenceBand = classifyReliabilityBand(finalConfidence, options.thresholds);
+  const freshness = normalizeFreshness(freshnessPart.freshness, 0.5);
+  const policyBand = applyReliabilityPolicy(confidenceBand, {
+    source: sourcePart.source,
+    predictionType,
+    confidence: finalConfidence,
+    freshness,
+    completenessScore: completenessPart.completeness.completenessScore,
+    allowScheduledDirect: options.allowScheduledDirect === true
+  });
+  const band = normalizeReliabilityBand(policyBand, RELIABILITY_BANDS.CAUTION);
 
   return {
     source: sourcePart.source,
     predictionType,
-    freshness: freshnessPart.freshness,
+    freshness,
     confidence: finalConfidence,
     reliabilityBand: band,
     scoreBreakdown: {
@@ -414,15 +419,19 @@ function filterRecordsByReliability(records, options = {}) {
     reliability: scoreRecordReliability(record, options)
   }));
 
-  const direct = evaluated.filter((entry) => entry.reliability.reliabilityBand === 'direct');
-  const disclaimer = evaluated.filter((entry) => entry.reliability.reliabilityBand === 'disclaimer');
-  const discarded = evaluated.filter((entry) => entry.reliability.reliabilityBand === 'discard');
+  const direct = evaluated.filter((entry) => entry.reliability.reliabilityBand === RELIABILITY_BANDS.DIRECT);
+  const caution = evaluated.filter((entry) => entry.reliability.reliabilityBand === RELIABILITY_BANDS.CAUTION);
+  const degraded = evaluated.filter((entry) => entry.reliability.reliabilityBand === RELIABILITY_BANDS.DEGRADED);
+  const discarded = evaluated.filter((entry) => entry.reliability.reliabilityBand === RELIABILITY_BANDS.DISCARD);
 
   return {
     evaluated,
     direct,
-    disclaimer,
-    discarded
+    caution,
+    degraded,
+    discarded,
+    // Legacy alias per compatibilità in moduli non ancora migrati.
+    disclaimer: caution
   };
 }
 
@@ -432,17 +441,27 @@ function buildAlexaReliabilityHint(evaluatedRecords) {
     return '';
   }
 
-  const hasDisclaimer = safeList.some((entry) => entry.reliability && entry.reliability.reliabilityBand === 'disclaimer');
-  const hasDiscarded = safeList.some((entry) => entry.reliability && entry.reliability.reliabilityBand === 'discard');
+  const hasCaution = safeList.some(
+    (entry) => entry.reliability && entry.reliability.reliabilityBand === RELIABILITY_BANDS.CAUTION
+  );
+  const hasDegraded = safeList.some(
+    (entry) => entry.reliability && entry.reliability.reliabilityBand === RELIABILITY_BANDS.DEGRADED
+  );
+  const hasDiscarded = safeList.some(
+    (entry) => entry.reliability && entry.reliability.reliabilityBand === RELIABILITY_BANDS.DISCARD
+  );
   const hasRealtime = safeList.some((entry) => {
     const predictionType = entry.reliability && entry.reliability.predictionType;
     return predictionType === PREDICTION_TYPES.REALTIME;
   });
 
-  if (hasDisclaimer && hasRealtime) {
+  if (hasDegraded) {
+    return 'Ti do una stima degradata: i tempi possono cambiare sensibilmente.';
+  }
+  if (hasCaution && hasRealtime) {
     return 'I tempi potrebbero variare leggermente.';
   }
-  if (hasDisclaimer) {
+  if (hasCaution) {
     return 'Ti do la migliore stima disponibile in questo momento.';
   }
   if (hasDiscarded) {
@@ -456,6 +475,7 @@ module.exports = {
   RELIABILITY_WEIGHTS,
   SOURCE_SCORE,
   THRESHOLDS,
+  RELIABILITY_BANDS,
   FRESHNESS_PROFILES,
   scoreFreshness,
   scoreCompleteness,

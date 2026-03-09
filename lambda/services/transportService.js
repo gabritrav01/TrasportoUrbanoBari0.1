@@ -8,6 +8,12 @@ const {
   normalizePredictionType,
   clampConfidence
 } = require('./providers/domain/providerShapes');
+const {
+  RELIABILITY_BANDS,
+  normalizeReliabilityBand,
+  normalizeFreshness,
+  mergeReliabilityBands
+} = require('./providers/domain/qualityScoring');
 
 function uniqueById(items) {
   const seen = new Set();
@@ -36,41 +42,11 @@ function dedupeByKey(items, keySelector) {
 }
 
 function mergeReliabilityBand(bands) {
-  const list = Array.isArray(bands) ? bands.map((band) => normalizeReliabilityBand(band)) : [];
-  if (list.includes('discard')) {
-    return 'discard';
-  }
-  if (list.includes('disclaimer')) {
-    return 'disclaimer';
-  }
-  return 'direct';
-}
-
-function normalizeReliabilityBand(value) {
-  if (value === 'direct' || value === 'disclaimer' || value === 'discard') {
-    return value;
-  }
-  // Prudente: assenza o valore non valido non viene promosso a "direct".
-  return 'disclaimer';
+  return mergeReliabilityBands(bands, RELIABILITY_BANDS.CAUTION);
 }
 
 function toFreshness(value) {
-  if (!value || typeof value !== 'object') {
-    return {
-      ageSec: null,
-      freshnessScore: 0.5,
-      bucket: 'unknown'
-    };
-  }
-
-  return {
-    ageSec: typeof value.ageSec === 'number' && Number.isFinite(value.ageSec) ? value.ageSec : null,
-    freshnessScore:
-      typeof value.freshnessScore === 'number' && Number.isFinite(value.freshnessScore)
-        ? Math.max(0, Math.min(1, value.freshnessScore))
-        : 0.5,
-    bucket: typeof value.bucket === 'string' && value.bucket ? value.bucket : 'unknown'
-  };
+  return normalizeFreshness(value, 0.5);
 }
 
 function toSourceName(value, fallbackValue) {
@@ -100,9 +76,20 @@ function sanitizeArrivalRecord(arrival, overrides = {}) {
     overrides.confidence !== undefined ? overrides.confidence : base.confidence,
     0.55
   );
-  const reliabilityBand = normalizeReliabilityBand(
+  let reliabilityBand = normalizeReliabilityBand(
     overrides.reliabilityBand !== undefined ? overrides.reliabilityBand : base.reliabilityBand
   );
+  let adjustedConfidence = confidence;
+
+  if (predictionType === PREDICTION_TYPES.INFERRED && reliabilityBand !== RELIABILITY_BANDS.DISCARD) {
+    reliabilityBand = RELIABILITY_BANDS.DEGRADED;
+    adjustedConfidence = Math.min(adjustedConfidence, 0.69);
+  }
+
+  if (reliabilityBand === RELIABILITY_BANDS.DIRECT && (predictionType !== PREDICTION_TYPES.REALTIME || source !== SOURCE_TYPES.OFFICIAL)) {
+    reliabilityBand = RELIABILITY_BANDS.CAUTION;
+    adjustedConfidence = Math.min(confidence, 0.79);
+  }
 
   return {
     ...base,
@@ -112,7 +99,7 @@ function sanitizeArrivalRecord(arrival, overrides = {}) {
       source === SOURCE_TYPES.OFFICIAL ? 'amtab_primary' : 'transport_fallback'
     ),
     predictionType,
-    confidence,
+    confidence: adjustedConfidence,
     freshness: toFreshness(
       overrides.freshness !== undefined ? overrides.freshness : base.freshness
     ),
@@ -126,14 +113,40 @@ function markScheduledFallback(arrival) {
     sourceName: `${toSourceName(arrival.sourceName, 'transport_fallback')}:scheduled_fallback`,
     predictionType: PREDICTION_TYPES.SCHEDULED,
     confidence: Math.min(clampConfidence(arrival.confidence, 0.7), 0.74),
-    reliabilityBand: 'disclaimer'
+    reliabilityBand: RELIABILITY_BANDS.CAUTION
   });
 }
 
+function sanitizeEntityProvenance(entity) {
+  if (!entity || typeof entity !== 'object') {
+    return null;
+  }
+
+  const sourceName = toSourceName(entity.sourceName, '');
+  let source = normalizeSource(entity.source, SOURCE_TYPES.FALLBACK);
+  const confidence = clampConfidence(entity.confidence, 0.75);
+  const looksLikeStub =
+    /stub|mock|fixture|simulated|fallback/i.test(sourceName) ||
+    sourceName === '';
+
+  if (looksLikeStub && source === SOURCE_TYPES.OFFICIAL) {
+    source = SOURCE_TYPES.FALLBACK;
+  }
+
+  return {
+    ...entity,
+    source,
+    sourceName: sourceName || (source === SOURCE_TYPES.OFFICIAL ? 'amtab_primary' : 'transport_stub_catalog'),
+    confidence
+  };
+}
+
 class TransportService {
-  constructor({ primaryProvider, fallbackProvider }) {
+  constructor({ primaryProvider, fallbackProvider, runtimeDataMode, logger }) {
     this.primaryProvider = primaryProvider;
     this.fallbackProvider = fallbackProvider;
+    this.runtimeDataMode = String(runtimeDataMode || 'stub').trim().toLowerCase();
+    this.logger = logger || console;
 
     this.stopById = new Map();
     this.destinationById = new Map();
@@ -141,6 +154,10 @@ class TransportService {
 
     this._indexProviderCatalog(this.primaryProvider);
     this._indexProviderCatalog(this.fallbackProvider);
+
+    this.logger.info(
+      `[TransportService] initialized mode=${this.runtimeDataMode} fallbackProvider=${this.fallbackProvider ? 'enabled' : 'disabled'}`
+    );
   }
 
   _indexProviderCatalog(provider) {
@@ -155,20 +172,27 @@ class TransportService {
     const lines = catalog && Array.isArray(catalog.lines) ? catalog.lines : [];
 
     stops.forEach((stop) => {
-      if (stop && stop.id && !this.stopById.has(stop.id)) {
-        this.stopById.set(stop.id, stop);
+      const normalizedStop = sanitizeEntityProvenance(stop);
+      if (normalizedStop && normalizedStop.id && !this.stopById.has(normalizedStop.id)) {
+        this.stopById.set(normalizedStop.id, normalizedStop);
       }
     });
 
     destinations.forEach((destinationTarget) => {
-      if (destinationTarget && destinationTarget.id && !this.destinationById.has(destinationTarget.id)) {
-        this.destinationById.set(destinationTarget.id, destinationTarget);
+      const normalizedDestination = sanitizeEntityProvenance(destinationTarget);
+      if (
+        normalizedDestination &&
+        normalizedDestination.id &&
+        !this.destinationById.has(normalizedDestination.id)
+      ) {
+        this.destinationById.set(normalizedDestination.id, normalizedDestination);
       }
     });
 
     lines.forEach((line) => {
-      if (line && line.id && !this.lineById.has(line.id)) {
-        this.lineById.set(line.id, line);
+      const normalizedLine = sanitizeEntityProvenance(line);
+      if (normalizedLine && normalizedLine.id && !this.lineById.has(normalizedLine.id)) {
+        this.lineById.set(normalizedLine.id, normalizedLine);
       }
     });
   }
@@ -192,12 +216,17 @@ class TransportService {
     if (primaryData.length) {
       return primaryData;
     }
+    if (this.fallbackProvider) {
+      this.logger.warn(
+        `[TransportService] primary provider returned no data for ${methodName}; trying secondary provider`
+      );
+    }
     return this._safeArrayCall(this.fallbackProvider, methodName, args);
   }
 
   async searchStops(query) {
     const stops = await this._callPreferPrimaryArray('searchStops', [query]);
-    return uniqueById(stops);
+    return uniqueById(stops.map((stop) => sanitizeEntityProvenance(stop)).filter(Boolean));
   }
 
   async nearestStops(lat, lon) {
@@ -209,12 +238,14 @@ class TransportService {
 
   async getLinesServingStop(stopId) {
     const lines = await this._callPreferPrimaryArray('getLinesServingStop', [stopId]);
-    return uniqueById(lines);
+    return uniqueById(lines.map((line) => sanitizeEntityProvenance(line)).filter(Boolean));
   }
 
   async resolveDestination(query) {
     const destinationTargets = await this._callPreferPrimaryArray('resolveDestination', [query]);
-    return uniqueById(destinationTargets);
+    return uniqueById(
+      destinationTargets.map((destination) => sanitizeEntityProvenance(destination)).filter(Boolean)
+    );
   }
 
   async findRoutes(originStopIds, destinationTargetIds) {
@@ -263,12 +294,12 @@ class TransportService {
   async searchLines(query) {
     const fromPrimary = await this._safeArrayCall(this.primaryProvider, 'searchLines', [query]);
     if (fromPrimary.length) {
-      return uniqueById(fromPrimary);
+      return uniqueById(fromPrimary.map((line) => sanitizeEntityProvenance(line)).filter(Boolean));
     }
 
     const fromFallback = await this._safeArrayCall(this.fallbackProvider, 'searchLines', [query]);
     if (fromFallback.length) {
-      return uniqueById(fromFallback);
+      return uniqueById(fromFallback.map((line) => sanitizeEntityProvenance(line)).filter(Boolean));
     }
 
     const normalizedQuery = normalizeText(query);
@@ -438,8 +469,13 @@ class TransportService {
   }
 }
 
-function createTransportService({ primaryProvider, fallbackProvider }) {
-  return new TransportService({ primaryProvider, fallbackProvider });
+function createTransportService({ primaryProvider, fallbackProvider, runtimeDataMode, logger }) {
+  return new TransportService({
+    primaryProvider,
+    fallbackProvider,
+    runtimeDataMode,
+    logger
+  });
 }
 
 module.exports = {

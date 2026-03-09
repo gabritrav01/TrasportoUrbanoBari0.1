@@ -55,7 +55,8 @@ function buildDataSource(options = {}) {
       options.reliabilityPolicy || {
         thresholds: {
           direct: 0.65,
-          disclaimer: 0.35
+          caution: 0.35,
+          degraded: 0.2
         }
       }
   });
@@ -136,7 +137,7 @@ describe('AMTAB arrivals data source', () => {
     expect(arrivals[0].etaMinutes).toBe(0);
     expect(arrivals.every((arrival) => arrival.predictionType === 'inferred')).toBe(true);
     expect(arrivals.every((arrival) => arrival.source === 'fallback')).toBe(true);
-    expect(arrivals.every((arrival) => arrival.reliabilityBand === 'disclaimer')).toBe(true);
+    expect(arrivals.every((arrival) => arrival.reliabilityBand === 'degraded')).toBe(true);
   });
 
   test('returns an empty list on realtime timeout and logs the error', async () => {
@@ -162,7 +163,7 @@ describe('AMTAB arrivals data source', () => {
     expect(logger.error).toHaveBeenCalled();
   });
 
-  test('deduplicates stop arrivals when the same line is resolved multiple times', async () => {
+  test('deduplicates stop arrivals and avoids duplicate in-flight realtime calls for same key', async () => {
     const duplicatedLines = [
       linesCatalogFixture.lines[0],
       {
@@ -179,10 +180,10 @@ describe('AMTAB arrivals data source', () => {
     const arrivals = await dataSource.getStopArrivals('STOP_100');
 
     expect(arrivals).toHaveLength(1);
-    expect(apiClient.getRealtimePredictions).toHaveBeenCalledTimes(2);
+    expect(apiClient.getRealtimePredictions).toHaveBeenCalledTimes(1);
   });
 
-  test('marks scheduled fallback in getStopArrivals as non-official with disclaimer', async () => {
+  test('marks scheduled fallback in getStopArrivals as non-official with caution', async () => {
     const apiClient = {
       getStopArrivals: jest.fn(async () => []),
       getRealtimePredictions: jest.fn(async () => []),
@@ -194,6 +195,6 @@ describe('AMTAB arrivals data source', () => {
 
     expect(arrivals.length).toBeGreaterThan(0);
     expect(arrivals.every((arrival) => arrival.source !== 'official')).toBe(true);
-    expect(arrivals.every((arrival) => arrival.reliabilityBand === 'disclaimer')).toBe(true);
+    expect(arrivals.every((arrival) => arrival.reliabilityBand === 'caution')).toBe(true);
   });
 });

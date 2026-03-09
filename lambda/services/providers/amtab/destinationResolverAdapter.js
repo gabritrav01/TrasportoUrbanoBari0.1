@@ -1,6 +1,7 @@
 'use strict';
 
 const { topRankedMatches } = require('../../../resolvers/transportDataResolver');
+const { createResilientExecutor, logResilienceFailure } = require('./resilienceHelpers');
 
 function createNoopCacheAdapter() {
   return {
@@ -35,6 +36,8 @@ function createDestinationResolverAdapter(dependencies = {}) {
   const cacheAdapter = dependencies.cacheAdapter || createNoopCacheAdapter();
   const apiClient = dependencies.apiClient || {};
   const retryAdapter = dependencies.retryAdapter || null;
+  const logger = dependencies.logger || console;
+  const resiliencePolicy = dependencies.resiliencePolicy || {};
   const resolveTtlMs = typeof dependencies.resolveTtlMs === 'number' ? dependencies.resolveTtlMs : 60000;
   const rawDestinationTargets =
     Array.isArray(dependencies.catalog && dependencies.catalog.destinationTargets)
@@ -45,13 +48,11 @@ function createDestinationResolverAdapter(dependencies = {}) {
     .filter(Boolean);
   const destinationTargets = [];
   const destinationById = new Map();
-
-  function runWithRetry(operationName, operationFn) {
-    if (retryAdapter && typeof retryAdapter.execute === 'function') {
-      return retryAdapter.execute(operationName, operationFn);
-    }
-    return operationFn();
-  }
+  const resilientExecutor = createResilientExecutor({
+    logger,
+    retryAdapter,
+    resiliencePolicy
+  });
 
   function registerDestinationTargets(nextDestinationTargets) {
     nextDestinationTargets.forEach((destinationTarget) => {
@@ -75,13 +76,25 @@ function createDestinationResolverAdapter(dependencies = {}) {
     }
 
     try {
-      const result = await runWithRetry(`amtab.destinationResolverAdapter.${methodName}`, () => method(...args));
+      const result = await resilientExecutor.run({
+        operationName: `amtab.destinationResolverAdapter.${methodName}`,
+        category: 'staticLookup',
+        executeFn: () => method(...args)
+      });
       if (!Array.isArray(result)) {
         return [];
       }
       return dedupeById(result.map((entry) => normalizer.normalizeDestinationTarget(entry)).filter(Boolean));
     } catch (error) {
-      console.error(`AMTAB destinationResolverAdapter remote call failed: ${methodName}`, error);
+      logResilienceFailure(
+        logger,
+        `[AMTAB][destinationResolverAdapter.${methodName}] remote call failed -> using catalog fallback`,
+        error,
+        {
+          operationName: `amtab.destinationResolverAdapter.${methodName}`,
+          category: 'staticLookup'
+        }
+      );
       return [];
     }
   }

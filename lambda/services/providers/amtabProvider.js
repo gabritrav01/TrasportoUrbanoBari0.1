@@ -11,6 +11,7 @@ const { createLinesDataSource } = require('./amtab/linesDataSource');
 const { createDestinationResolverAdapter } = require('./amtab/destinationResolverAdapter');
 const { createArrivalsDataSource } = require('./amtab/arrivalsDataSource');
 const { createRoutePlanner } = require('./amtab/routePlanner');
+const { normalizeSource, SOURCE_TYPES } = require('./domain/providerShapes');
 
 function createRawCatalog(catalogOverride) {
   const override = catalogOverride || {};
@@ -37,12 +38,39 @@ class AmtabProvider extends TransportProvider {
   constructor(options = {}) {
     super('amtab-provider');
     this.options = options;
+    this.logger = options.logger || console;
+    this.runtimeDataMode = String(options.runtimeDataMode || 'stub').trim().toLowerCase();
     this.cachePolicy = options.cachePolicy || {};
     this.resiliencePolicy = options.resiliencePolicy || {};
     this.reliabilityPolicy = options.reliabilityPolicy || {};
-    this.defaultSource = typeof options.defaultSource === 'string' ? options.defaultSource : 'fallback';
+    const requestedDefaultSource = normalizeSource(options.defaultSource, SOURCE_TYPES.FALLBACK);
+    this.defaultSource =
+      this.runtimeDataMode === 'amtab_real'
+        ? requestedDefaultSource
+        : SOURCE_TYPES.FALLBACK;
     this.defaultSourceName =
       typeof options.defaultSourceName === 'string' ? options.defaultSourceName : this.providerName;
+    this.hasRealtimeHooks = [
+      options.searchStops,
+      options.searchLines,
+      options.getStopArrivals,
+      options.getRealtimePredictions,
+      options.getScheduledArrivals
+    ].some((hook) => typeof hook === 'function');
+
+    if (this.runtimeDataMode !== 'amtab_real' && requestedDefaultSource === SOURCE_TYPES.OFFICIAL) {
+      this.logger.warn(
+        '[AmtabProvider] defaultSource=official requested outside amtab_real mode -> forced to fallback'
+      );
+    }
+    if (this.runtimeDataMode === 'amtab_real' && this.hasRealtimeHooks) {
+      this.logger.info('[AmtabProvider] amtab_real mode active with real gateway hooks');
+    }
+    if (this.runtimeDataMode === 'amtab_real' && !this.hasRealtimeHooks) {
+      this.logger.warn(
+        '[AmtabProvider] amtab_real mode requested but no real gateway hooks configured; using stub catalog fallback'
+      );
+    }
 
     this.normalizer = options.normalizer || createAmtabNormalizer();
     this.cacheAdapter =
@@ -52,10 +80,23 @@ class AmtabProvider extends TransportProvider {
           this.cachePolicy.adapter && typeof this.cachePolicy.adapter.defaultTtlMs === 'number'
             ? this.cachePolicy.adapter.defaultTtlMs
             : 30000,
+        defaultStaleIfErrorTtlMs:
+          this.cachePolicy.adapter && typeof this.cachePolicy.adapter.defaultStaleIfErrorTtlMs === 'number'
+            ? this.cachePolicy.adapter.defaultStaleIfErrorTtlMs
+            : 0,
+        defaultNegativeTtlMs:
+          this.cachePolicy.adapter && typeof this.cachePolicy.adapter.defaultNegativeTtlMs === 'number'
+            ? this.cachePolicy.adapter.defaultNegativeTtlMs
+            : 5000,
+        defaultInFlightDedupe:
+          this.cachePolicy.adapter && this.cachePolicy.adapter.defaultInFlightDedupe !== undefined
+            ? Boolean(this.cachePolicy.adapter.defaultInFlightDedupe)
+            : true,
         maxEntries:
           this.cachePolicy.adapter && typeof this.cachePolicy.adapter.maxEntries === 'number'
             ? this.cachePolicy.adapter.maxEntries
-            : 2500
+            : 2500,
+        logger: this.logger
       });
     this.retryAdapter =
       options.retryAdapter ||
@@ -90,14 +131,32 @@ class AmtabProvider extends TransportProvider {
         cacheAdapter: this.cacheAdapter,
         apiClient: this.apiClient,
         retryAdapter: this.retryAdapter,
+        logger: this.logger,
+        resiliencePolicy: this.resiliencePolicy,
         defaultLimit: typeof options.nearestStopsLimit === 'number' ? options.nearestStopsLimit : 5,
         searchTtlMs:
           this.cachePolicy.stop && typeof this.cachePolicy.stop.searchTtlMs === 'number'
             ? this.cachePolicy.stop.searchTtlMs
             : undefined,
+        searchStaleIfErrorTtlMs:
+          this.cachePolicy.stop && typeof this.cachePolicy.stop.searchStaleIfErrorTtlMs === 'number'
+            ? this.cachePolicy.stop.searchStaleIfErrorTtlMs
+            : undefined,
+        searchNegativeTtlMs:
+          this.cachePolicy.stop && typeof this.cachePolicy.stop.searchNegativeTtlMs === 'number'
+            ? this.cachePolicy.stop.searchNegativeTtlMs
+            : undefined,
         nearestTtlMs:
           this.cachePolicy.stop && typeof this.cachePolicy.stop.nearestTtlMs === 'number'
             ? this.cachePolicy.stop.nearestTtlMs
+            : undefined,
+        nearestStaleIfErrorTtlMs:
+          this.cachePolicy.stop && typeof this.cachePolicy.stop.nearestStaleIfErrorTtlMs === 'number'
+            ? this.cachePolicy.stop.nearestStaleIfErrorTtlMs
+            : undefined,
+        nearestNegativeTtlMs:
+          this.cachePolicy.stop && typeof this.cachePolicy.stop.nearestNegativeTtlMs === 'number'
+            ? this.cachePolicy.stop.nearestNegativeTtlMs
             : undefined
       });
 
@@ -109,13 +168,31 @@ class AmtabProvider extends TransportProvider {
         cacheAdapter: this.cacheAdapter,
         apiClient: this.apiClient,
         retryAdapter: this.retryAdapter,
+        logger: this.logger,
+        resiliencePolicy: this.resiliencePolicy,
         searchTtlMs:
           this.cachePolicy.line && typeof this.cachePolicy.line.searchTtlMs === 'number'
             ? this.cachePolicy.line.searchTtlMs
             : undefined,
+        searchStaleIfErrorTtlMs:
+          this.cachePolicy.line && typeof this.cachePolicy.line.searchStaleIfErrorTtlMs === 'number'
+            ? this.cachePolicy.line.searchStaleIfErrorTtlMs
+            : undefined,
+        searchNegativeTtlMs:
+          this.cachePolicy.line && typeof this.cachePolicy.line.searchNegativeTtlMs === 'number'
+            ? this.cachePolicy.line.searchNegativeTtlMs
+            : undefined,
         byStopTtlMs:
           this.cachePolicy.line && typeof this.cachePolicy.line.byStopTtlMs === 'number'
             ? this.cachePolicy.line.byStopTtlMs
+            : undefined,
+        byStopStaleIfErrorTtlMs:
+          this.cachePolicy.line && typeof this.cachePolicy.line.byStopStaleIfErrorTtlMs === 'number'
+            ? this.cachePolicy.line.byStopStaleIfErrorTtlMs
+            : undefined,
+        byStopNegativeTtlMs:
+          this.cachePolicy.line && typeof this.cachePolicy.line.byStopNegativeTtlMs === 'number'
+            ? this.cachePolicy.line.byStopNegativeTtlMs
             : undefined
       });
 
@@ -127,6 +204,8 @@ class AmtabProvider extends TransportProvider {
         cacheAdapter: this.cacheAdapter,
         apiClient: this.apiClient,
         retryAdapter: this.retryAdapter,
+        logger: this.logger,
+        resiliencePolicy: this.resiliencePolicy,
         resolveTtlMs:
           this.cachePolicy.destination && typeof this.cachePolicy.destination.resolveTtlMs === 'number'
             ? this.cachePolicy.destination.resolveTtlMs
@@ -140,6 +219,7 @@ class AmtabProvider extends TransportProvider {
         cacheAdapter: this.cacheAdapter,
         apiClient: this.apiClient,
         retryAdapter: this.retryAdapter,
+        logger: this.logger,
         linesDataSource: this.linesDataSource,
         providerName: this.providerName,
         now: typeof options.now === 'function' ? options.now : undefined,
@@ -147,13 +227,43 @@ class AmtabProvider extends TransportProvider {
           this.cachePolicy.arrival && typeof this.cachePolicy.arrival.realtimeTtlMs === 'number'
             ? this.cachePolicy.arrival.realtimeTtlMs
             : undefined,
+        realtimeStaleIfErrorTtlMs:
+          this.cachePolicy.arrival &&
+          typeof this.cachePolicy.arrival.realtimeStaleIfErrorTtlMs === 'number'
+            ? this.cachePolicy.arrival.realtimeStaleIfErrorTtlMs
+            : undefined,
+        realtimeNegativeTtlMs:
+          this.cachePolicy.arrival &&
+          typeof this.cachePolicy.arrival.realtimeNegativeTtlMs === 'number'
+            ? this.cachePolicy.arrival.realtimeNegativeTtlMs
+            : undefined,
         scheduledTtlMs:
           this.cachePolicy.arrival && typeof this.cachePolicy.arrival.scheduledTtlMs === 'number'
             ? this.cachePolicy.arrival.scheduledTtlMs
             : undefined,
+        scheduledStaleIfErrorTtlMs:
+          this.cachePolicy.arrival &&
+          typeof this.cachePolicy.arrival.scheduledStaleIfErrorTtlMs === 'number'
+            ? this.cachePolicy.arrival.scheduledStaleIfErrorTtlMs
+            : undefined,
+        scheduledNegativeTtlMs:
+          this.cachePolicy.arrival &&
+          typeof this.cachePolicy.arrival.scheduledNegativeTtlMs === 'number'
+            ? this.cachePolicy.arrival.scheduledNegativeTtlMs
+            : undefined,
         stopArrivalsTtlMs:
           this.cachePolicy.arrival && typeof this.cachePolicy.arrival.stopArrivalsTtlMs === 'number'
             ? this.cachePolicy.arrival.stopArrivalsTtlMs
+            : undefined,
+        stopArrivalsStaleIfErrorTtlMs:
+          this.cachePolicy.arrival &&
+          typeof this.cachePolicy.arrival.stopArrivalsStaleIfErrorTtlMs === 'number'
+            ? this.cachePolicy.arrival.stopArrivalsStaleIfErrorTtlMs
+            : undefined,
+        stopArrivalsNegativeTtlMs:
+          this.cachePolicy.arrival &&
+          typeof this.cachePolicy.arrival.stopArrivalsNegativeTtlMs === 'number'
+            ? this.cachePolicy.arrival.stopArrivalsNegativeTtlMs
             : undefined,
         defaultSource: this.defaultSource,
         defaultSourceName: this.defaultSourceName,
@@ -168,6 +278,8 @@ class AmtabProvider extends TransportProvider {
         cacheAdapter: this.cacheAdapter,
         apiClient: this.apiClient,
         retryAdapter: this.retryAdapter,
+        logger: this.logger,
+        resiliencePolicy: this.resiliencePolicy,
         linesDataSource: this.linesDataSource,
         providerName: this.providerName
       });

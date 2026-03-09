@@ -1,5 +1,12 @@
 'use strict';
 
+const {
+  RELIABILITY_BANDS,
+  normalizeReliabilityBand,
+  normalizeFreshness,
+  scoreProviderResultQuality
+} = require('./qualityScoring');
+
 const SOURCE_TYPES = Object.freeze({
   OFFICIAL: 'official',
   PUBLIC: 'public',
@@ -364,6 +371,14 @@ function normalizeArrivalShape(rawArrival, defaults = {}) {
       rawArrival && rawArrival.confidence !== undefined ? rawArrival.confidence : defaults.confidence,
       toArrivalFallbackConfidence(predictionType)
     ),
+    freshness: normalizeFreshness(
+      rawArrival && rawArrival.freshness !== undefined ? rawArrival.freshness : defaults.freshness,
+      0.5
+    ),
+    reliabilityBand: normalizeReliabilityBand(
+      rawArrival && rawArrival.reliabilityBand !== undefined ? rawArrival.reliabilityBand : defaults.reliabilityBand,
+      RELIABILITY_BANDS.CAUTION
+    ),
     providerTripId: toStringOrNull(
       rawArrival && rawArrival.providerTripId !== undefined
         ? rawArrival.providerTripId
@@ -465,16 +480,32 @@ function createProviderError(rawProviderError, defaults = {}) {
 function createProviderResult(rawProviderResult = {}) {
   const ok = rawProviderResult.ok !== false;
   const source = normalizeSource(rawProviderResult.source, SOURCE_TYPES.FALLBACK);
+  const sourceName = toString(rawProviderResult.sourceName, source === SOURCE_TYPES.OFFICIAL ? 'provider_primary' : 'provider_fallback');
+  const predictionType = normalizePredictionType(
+    rawProviderResult.predictionType !== undefined ? rawProviderResult.predictionType : PREDICTION_TYPES.INFERRED,
+    PREDICTION_TYPES.INFERRED
+  );
+  const rawConfidence = clampConfidence(rawProviderResult.confidence, null);
+  const quality = scoreProviderResultQuality({
+    source,
+    sourceName,
+    predictionType,
+    confidence: rawConfidence,
+    freshness: rawProviderResult.freshness,
+    reliabilityBand: rawProviderResult.reliabilityBand,
+    ok,
+    data: Array.isArray(rawProviderResult.data) ? rawProviderResult.data : [],
+    error: rawProviderResult.error || null
+  });
 
   return {
     ok,
     source,
-    sourceName: toString(rawProviderResult.sourceName, ''),
-    predictionType:
-      rawProviderResult.predictionType !== undefined
-        ? normalizePredictionType(rawProviderResult.predictionType, PREDICTION_TYPES.INFERRED)
-        : null,
-    confidence: clampConfidence(rawProviderResult.confidence, null),
+    sourceName,
+    predictionType,
+    confidence: quality.confidence,
+    freshness: quality.freshness,
+    reliabilityBand: quality.reliabilityBand,
     fetchedAtEpochMs: toEpochMsOrNull(rawProviderResult.fetchedAtEpochMs) || Date.now(),
     staleAtEpochMs: toEpochMsOrNull(rawProviderResult.staleAtEpochMs),
     warnings: toStringArray(rawProviderResult.warnings),

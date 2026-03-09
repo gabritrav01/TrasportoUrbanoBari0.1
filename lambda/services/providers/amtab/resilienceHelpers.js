@@ -24,6 +24,29 @@ function createNoopLogger() {
   };
 }
 
+function buildResilienceErrorDetails(error, extras = {}) {
+  const safeError = error || {};
+  return {
+    ...extras,
+    code: safeError.code || 'UNKNOWN',
+    retryable: isRetryableError(safeError),
+    message: safeError.message || String(safeError),
+    httpStatus: typeof safeError.httpStatus === 'number' ? safeError.httpStatus : null
+  };
+}
+
+function logResilienceFailure(logger, message, error, extras = {}) {
+  const safeLogger = logger || createNoopLogger();
+  const details = buildResilienceErrorDetails(error, extras);
+  if (typeof safeLogger.warn === 'function') {
+    safeLogger.warn(message, details);
+    return;
+  }
+  if (typeof safeLogger.error === 'function') {
+    safeLogger.error(message, details);
+  }
+}
+
 function createTimeoutError(operationName, timeoutMs) {
   const error = new Error(`${operationName || 'operation'} timed out after ${timeoutMs}ms`);
   error.code = 'TIMEOUT';
@@ -170,6 +193,71 @@ function createSimpleCircuitBreaker(options = {}) {
   };
 }
 
+function createResilientExecutor(options = {}) {
+  const logger = options.logger || createNoopLogger();
+  const retryAdapter = options.retryAdapter || null;
+  const resiliencePolicy = options.resiliencePolicy || {};
+  const now = typeof options.now === 'function' ? options.now : () => Date.now();
+
+  const timeoutsMs = {
+    realtime:
+      resiliencePolicy.timeoutsMs && typeof resiliencePolicy.timeoutsMs.realtime === 'number'
+        ? resiliencePolicy.timeoutsMs.realtime
+        : RESILIENCE_DEFAULTS.timeoutsMs.realtime,
+    scheduled:
+      resiliencePolicy.timeoutsMs && typeof resiliencePolicy.timeoutsMs.scheduled === 'number'
+        ? resiliencePolicy.timeoutsMs.scheduled
+        : RESILIENCE_DEFAULTS.timeoutsMs.scheduled,
+    staticLookup:
+      resiliencePolicy.timeoutsMs && typeof resiliencePolicy.timeoutsMs.staticLookup === 'number'
+        ? resiliencePolicy.timeoutsMs.staticLookup
+        : RESILIENCE_DEFAULTS.timeoutsMs.staticLookup
+  };
+
+  const circuitBreakerOptions = {
+    realtime:
+      (resiliencePolicy.circuitBreaker && resiliencePolicy.circuitBreaker.realtime) ||
+      RESILIENCE_DEFAULTS.circuitBreaker.realtime,
+    scheduled:
+      (resiliencePolicy.circuitBreaker && resiliencePolicy.circuitBreaker.scheduled) ||
+      RESILIENCE_DEFAULTS.circuitBreaker.scheduled,
+    staticLookup:
+      (resiliencePolicy.circuitBreaker && resiliencePolicy.circuitBreaker.staticLookup) ||
+      RESILIENCE_DEFAULTS.circuitBreaker.staticLookup
+  };
+
+  const circuitBreakers = options.circuitBreakers || {
+    realtime: createSimpleCircuitBreaker({ ...circuitBreakerOptions.realtime, now }),
+    scheduled: createSimpleCircuitBreaker({ ...circuitBreakerOptions.scheduled, now }),
+    staticLookup: createSimpleCircuitBreaker({ ...circuitBreakerOptions.staticLookup, now })
+  };
+
+  async function run(config = {}) {
+    const operationName = config.operationName || 'amtab.operation';
+    const category = config.category || 'staticLookup';
+    const executeFn = config.executeFn;
+    const suppressFailureLog =
+      config.suppressFailureLog !== undefined ? Boolean(config.suppressFailureLog) : true;
+
+    return executeWithResilience({
+      operationName,
+      category,
+      timeoutMs: timeoutsMs[category] || RESILIENCE_DEFAULTS.timeoutsMs.staticLookup,
+      retryAdapter,
+      circuitBreaker: circuitBreakers[category] || null,
+      logger,
+      suppressFailureLog,
+      executeFn
+    });
+  }
+
+  return {
+    run,
+    timeoutsMs,
+    circuitBreakers
+  };
+}
+
 async function executeWithResilience(options = {}) {
   const operationName = options.operationName || 'amtab.operation';
   const category = options.category || 'scheduled';
@@ -177,6 +265,7 @@ async function executeWithResilience(options = {}) {
   const retryAdapter = options.retryAdapter || null;
   const circuitBreaker = options.circuitBreaker || null;
   const timeoutMs = options.timeoutMs || RESILIENCE_DEFAULTS.timeoutsMs.scheduled;
+  const suppressFailureLog = options.suppressFailureLog === true;
   const executeFn = options.executeFn;
 
   if (typeof executeFn !== 'function') {
@@ -207,10 +296,12 @@ async function executeWithResilience(options = {}) {
     if (circuitBreaker) {
       circuitBreaker.recordFailure(error);
     }
-    logger.warn(`${operationName} failed (${category})`, {
-      code: error && error.code ? error.code : 'UNKNOWN',
-      retryable: isRetryableError(error)
-    });
+    if (!suppressFailureLog) {
+      logger.warn(`${operationName} failed (${category})`, {
+        code: error && error.code ? error.code : 'UNKNOWN',
+        retryable: isRetryableError(error)
+      });
+    }
     throw error;
   }
 }
@@ -247,8 +338,11 @@ module.exports = {
   RESILIENCE_DEFAULTS,
   RETRYABLE_HTTP_STATUS,
   isRetryableError,
+  buildResilienceErrorDetails,
+  logResilienceFailure,
   withTimeout,
   createSimpleCircuitBreaker,
+  createResilientExecutor,
   executeWithResilience,
   selectBestArrivals,
   buildVoiceDegradationHint

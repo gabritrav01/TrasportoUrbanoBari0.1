@@ -4,6 +4,11 @@ const { scheduleMinutesFromHeadway, sortByEta } = require('../../../resolvers/tr
 const { createArrivalNormalizer } = require('../domain/arrivalNormalizer');
 const { filterRecordsByReliability } = require('../domain/reliabilityScoring');
 const {
+  RELIABILITY_BANDS,
+  normalizeReliabilityBand,
+  normalizeFreshness
+} = require('../domain/qualityScoring');
+const {
   SOURCE_TYPES,
   PREDICTION_TYPES,
   normalizeSource,
@@ -28,43 +33,6 @@ function createNoopCacheAdapter() {
       return valueFactory();
     }
   };
-}
-
-const RELIABILITY_BANDS = Object.freeze({
-  DIRECT: 'direct',
-  DISCLAIMER: 'disclaimer',
-  DISCARD: 'discard'
-});
-
-function normalizeFreshness(value) {
-  const bucket = value && typeof value.bucket === 'string' ? value.bucket : 'unknown';
-  const ageSec =
-    value && typeof value.ageSec === 'number' && Number.isFinite(value.ageSec)
-      ? value.ageSec
-      : null;
-  const freshnessScore =
-    value && typeof value.freshnessScore === 'number' && Number.isFinite(value.freshnessScore)
-      ? Math.max(0, Math.min(1, value.freshnessScore))
-      : 0.5;
-
-  return {
-    ageSec,
-    freshnessScore,
-    bucket
-  };
-}
-
-function normalizeReliabilityBand(value) {
-  if (value === RELIABILITY_BANDS.DIRECT) {
-    return RELIABILITY_BANDS.DIRECT;
-  }
-  if (value === RELIABILITY_BANDS.DISCARD) {
-    return RELIABILITY_BANDS.DISCARD;
-  }
-  if (value === RELIABILITY_BANDS.DISCLAIMER) {
-    return RELIABILITY_BANDS.DISCLAIMER;
-  }
-  return RELIABILITY_BANDS.DISCLAIMER;
 }
 
 function safeSourceName(value, fallbackValue) {
@@ -96,6 +64,24 @@ function createArrivalsDataSource(dependencies = {}) {
   const realtimeTtlMs = typeof dependencies.realtimeTtlMs === 'number' ? dependencies.realtimeTtlMs : 15000;
   const scheduledTtlMs = typeof dependencies.scheduledTtlMs === 'number' ? dependencies.scheduledTtlMs : 45000;
   const stopArrivalsTtlMs = typeof dependencies.stopArrivalsTtlMs === 'number' ? dependencies.stopArrivalsTtlMs : 10000;
+  const realtimeStaleIfErrorTtlMs =
+    typeof dependencies.realtimeStaleIfErrorTtlMs === 'number'
+      ? dependencies.realtimeStaleIfErrorTtlMs
+      : 30000;
+  const scheduledStaleIfErrorTtlMs =
+    typeof dependencies.scheduledStaleIfErrorTtlMs === 'number'
+      ? dependencies.scheduledStaleIfErrorTtlMs
+      : 5 * 60 * 1000;
+  const stopArrivalsStaleIfErrorTtlMs =
+    typeof dependencies.stopArrivalsStaleIfErrorTtlMs === 'number'
+      ? dependencies.stopArrivalsStaleIfErrorTtlMs
+      : 45000;
+  const realtimeNegativeTtlMs =
+    typeof dependencies.realtimeNegativeTtlMs === 'number' ? dependencies.realtimeNegativeTtlMs : 5000;
+  const scheduledNegativeTtlMs =
+    typeof dependencies.scheduledNegativeTtlMs === 'number' ? dependencies.scheduledNegativeTtlMs : 15000;
+  const stopArrivalsNegativeTtlMs =
+    typeof dependencies.stopArrivalsNegativeTtlMs === 'number' ? dependencies.stopArrivalsNegativeTtlMs : 7000;
   const arrivalNormalizer =
     dependencies.arrivalNormalizer ||
     createArrivalNormalizer({
@@ -125,6 +111,27 @@ function createArrivalsDataSource(dependencies = {}) {
     realtime: createSimpleCircuitBreaker(circuitBreakerOptions.realtime),
     scheduled: createSimpleCircuitBreaker(circuitBreakerOptions.scheduled),
     staticLookup: createSimpleCircuitBreaker(circuitBreakerOptions.staticLookup)
+  };
+  const realtimeCachePolicy = {
+    ttlMs: realtimeTtlMs,
+    staleIfErrorTtlMs: realtimeStaleIfErrorTtlMs,
+    negativeTtlMs: realtimeNegativeTtlMs,
+    inFlightDedupe: true,
+    isNegativeValue: (value) => Array.isArray(value) && value.length === 0
+  };
+  const scheduledCachePolicy = {
+    ttlMs: scheduledTtlMs,
+    staleIfErrorTtlMs: scheduledStaleIfErrorTtlMs,
+    negativeTtlMs: scheduledNegativeTtlMs,
+    inFlightDedupe: true,
+    isNegativeValue: (value) => Array.isArray(value) && value.length === 0
+  };
+  const stopArrivalsCachePolicy = {
+    ttlMs: stopArrivalsTtlMs,
+    staleIfErrorTtlMs: stopArrivalsStaleIfErrorTtlMs,
+    negativeTtlMs: stopArrivalsNegativeTtlMs,
+    inFlightDedupe: true,
+    isNegativeValue: (value) => Array.isArray(value) && value.length === 0
   };
 
   function resolveCategory(methodName) {
@@ -160,16 +167,29 @@ function createArrivalsDataSource(dependencies = {}) {
     const freshness = normalizeFreshness(
       overrides.freshness !== undefined ? overrides.freshness : arrival.freshness
     );
-    const reliabilityBand = normalizeReliabilityBand(
+    let reliabilityBand = normalizeReliabilityBand(
       overrides.reliabilityBand !== undefined ? overrides.reliabilityBand : arrival.reliabilityBand
     );
+    let adjustedConfidence = confidence;
+
+    if (
+      reliabilityBand === RELIABILITY_BANDS.DIRECT &&
+      (predictionType !== PREDICTION_TYPES.REALTIME || source !== SOURCE_TYPES.OFFICIAL)
+    ) {
+      reliabilityBand = RELIABILITY_BANDS.CAUTION;
+      adjustedConfidence = Math.min(confidence, 0.79);
+    }
+    if (predictionType === PREDICTION_TYPES.INFERRED && reliabilityBand !== RELIABILITY_BANDS.DISCARD) {
+      reliabilityBand = RELIABILITY_BANDS.DEGRADED;
+      adjustedConfidence = Math.min(adjustedConfidence, 0.69);
+    }
 
     return {
       ...arrival,
       source,
       sourceName,
       predictionType,
-      confidence,
+      confidence: adjustedConfidence,
       freshness,
       reliabilityBand
     };
@@ -181,7 +201,7 @@ function createArrivalsDataSource(dependencies = {}) {
       sourceName: `${safeSourceName(arrival.sourceName, providerSourceName)}:scheduled_fallback`,
       predictionType: PREDICTION_TYPES.SCHEDULED,
       confidence: Math.min(clampConfidence(arrival.confidence, 0.7), 0.74),
-      reliabilityBand: RELIABILITY_BANDS.DISCLAIMER
+      reliabilityBand: RELIABILITY_BANDS.CAUTION
     });
   }
 
@@ -224,14 +244,15 @@ function createArrivalsDataSource(dependencies = {}) {
       thresholds:
         reliabilityPolicy && reliabilityPolicy.thresholds
           ? reliabilityPolicy.thresholds
-          : undefined
+          : undefined,
+      allowScheduledDirect: reliabilityPolicy && reliabilityPolicy.allowScheduledDirect === true
     });
 
     if (scored.discarded.length) {
       logger.warn(`AMTAB reliability scoring discarded ${scored.discarded.length} low-confidence arrivals`);
     }
 
-    return scored.direct.concat(scored.disclaimer).map((entry) => {
+    return scored.direct.concat(scored.caution).concat(scored.degraded).map((entry) => {
       const hydrated = ensureArrivalMetadata(entry.record, {
         source: entry.reliability.source || entry.record.source,
         predictionType: entry.reliability.predictionType || entry.record.predictionType,
@@ -368,7 +389,7 @@ function createArrivalsDataSource(dependencies = {}) {
         );
         return sortByEta(remoteArrivals);
       },
-      realtimeTtlMs
+      realtimeCachePolicy
     );
   }
 
@@ -406,7 +427,7 @@ function createArrivalsDataSource(dependencies = {}) {
             : null;
         return sortByEta(buildHeadwayScheduledArrivals(stopId, line));
       },
-      scheduledTtlMs
+      scheduledCachePolicy
     );
   }
 
@@ -450,7 +471,7 @@ function createArrivalsDataSource(dependencies = {}) {
         const dedupeResult = arrivalNormalizer.dedupeArrivals(groupedArrivals.flat());
         return sortByEta(dedupeResult.arrivals.map((arrival) => ensureArrivalMetadata(arrival)));
       },
-      stopArrivalsTtlMs
+      stopArrivalsCachePolicy
     );
   }
 

@@ -33,7 +33,7 @@ function createProvider(overrides = {}) {
 }
 
 describe('TransportService provenance hardening', () => {
-  test('treats missing reliabilityBand as disclaimer (never direct)', async () => {
+  test('treats missing reliabilityBand as caution (never direct)', async () => {
     const primaryProvider = createProvider({
       getStopArrivals: jest.fn(async () => [
         {
@@ -61,10 +61,10 @@ describe('TransportService provenance hardening', () => {
     const arrivals = await service.getNextArrivalsByStop({ stopId: 'STOP_1', lineId: null });
 
     expect(arrivals).toHaveLength(1);
-    expect(arrivals[0].reliabilityBand).toBe('disclaimer');
+    expect(arrivals[0].reliabilityBand).toBe('caution');
   });
 
-  test('downgrades scheduled fallback from realtime miss to non-official + disclaimer', async () => {
+  test('downgrades scheduled fallback from realtime miss to non-official + caution', async () => {
     const primaryProvider = createProvider({
       getRealtimePredictions: jest.fn(async () => []),
       getScheduledArrivals: jest.fn(async () => [
@@ -100,7 +100,6 @@ describe('TransportService provenance hardening', () => {
     expect(arrivals).toHaveLength(1);
     expect(arrivals[0].predictionType).toBe('scheduled');
     expect(arrivals[0].source).toBe('fallback');
-    expect(arrivals[0].reliabilityBand).toBe('disclaimer');
+    expect(arrivals[0].reliabilityBand).toBe('caution');
   });
 });
-

@@ -1,6 +1,7 @@
 'use strict';
 
 const { topRankedMatches, haversineDistanceMeters } = require('../../../resolvers/transportDataResolver');
+const { createResilientExecutor, logResilienceFailure } = require('./resilienceHelpers');
 
 function toCoordinatesKey(lat, lon, limit) {
   const latKey = Math.round(lat * 10000) / 10000;
@@ -41,20 +42,46 @@ function createStopDataSource(dependencies = {}) {
   const cacheAdapter = dependencies.cacheAdapter || createNoopCacheAdapter();
   const apiClient = dependencies.apiClient || {};
   const retryAdapter = dependencies.retryAdapter || null;
+  const logger = dependencies.logger || console;
+  const resiliencePolicy = dependencies.resiliencePolicy || {};
   const defaultLimit = typeof dependencies.defaultLimit === 'number' ? dependencies.defaultLimit : 5;
   const searchTtlMs = typeof dependencies.searchTtlMs === 'number' ? dependencies.searchTtlMs : 60000;
   const nearestTtlMs = typeof dependencies.nearestTtlMs === 'number' ? dependencies.nearestTtlMs : 15000;
+  const searchStaleIfErrorTtlMs =
+    typeof dependencies.searchStaleIfErrorTtlMs === 'number'
+      ? dependencies.searchStaleIfErrorTtlMs
+      : 10 * 60 * 1000;
+  const nearestStaleIfErrorTtlMs =
+    typeof dependencies.nearestStaleIfErrorTtlMs === 'number'
+      ? dependencies.nearestStaleIfErrorTtlMs
+      : 60 * 1000;
+  const searchNegativeTtlMs =
+    typeof dependencies.searchNegativeTtlMs === 'number' ? dependencies.searchNegativeTtlMs : 20 * 1000;
+  const nearestNegativeTtlMs =
+    typeof dependencies.nearestNegativeTtlMs === 'number' ? dependencies.nearestNegativeTtlMs : 8 * 1000;
   const rawStops = Array.isArray(dependencies.catalog && dependencies.catalog.stops) ? dependencies.catalog.stops : [];
   const catalogStops = rawStops.map((stop) => normalizer.normalizeStop(stop)).filter(Boolean);
   const stops = [];
   const stopById = new Map();
-
-  function runWithRetry(operationName, operationFn) {
-    if (retryAdapter && typeof retryAdapter.execute === 'function') {
-      return retryAdapter.execute(operationName, operationFn);
-    }
-    return operationFn();
-  }
+  const resilientExecutor = createResilientExecutor({
+    logger,
+    retryAdapter,
+    resiliencePolicy
+  });
+  const searchCachePolicy = {
+    ttlMs: searchTtlMs,
+    staleIfErrorTtlMs: searchStaleIfErrorTtlMs,
+    negativeTtlMs: searchNegativeTtlMs,
+    inFlightDedupe: true,
+    isNegativeValue: (value) => Array.isArray(value) && value.length === 0
+  };
+  const nearestCachePolicy = {
+    ttlMs: nearestTtlMs,
+    staleIfErrorTtlMs: nearestStaleIfErrorTtlMs,
+    negativeTtlMs: nearestNegativeTtlMs,
+    inFlightDedupe: true,
+    isNegativeValue: (value) => Array.isArray(value) && value.length === 0
+  };
 
   function registerStops(nextStops) {
     nextStops.forEach((stop) => {
@@ -78,13 +105,25 @@ function createStopDataSource(dependencies = {}) {
     }
 
     try {
-      const result = await runWithRetry(`amtab.stopDataSource.${methodName}`, () => method(...args));
+      const result = await resilientExecutor.run({
+        operationName: `amtab.stopDataSource.${methodName}`,
+        category: 'staticLookup',
+        executeFn: () => method(...args)
+      });
       if (!Array.isArray(result)) {
         return [];
       }
       return result.map((entry) => mapper(entry)).filter(Boolean);
     } catch (error) {
-      console.error(`AMTAB stopDataSource remote call failed: ${methodName}`, error);
+      logResilienceFailure(
+        logger,
+        `[AMTAB][stopDataSource.${methodName}] remote call failed -> using catalog fallback`,
+        error,
+        {
+          operationName: `amtab.stopDataSource.${methodName}`,
+          category: 'staticLookup'
+        }
+      );
       return [];
     }
   }
@@ -136,7 +175,7 @@ function createStopDataSource(dependencies = {}) {
 
         return topRankedMatches(stops, normalizedQuery, (stop) => [stop.name].concat(stop.aliases || []));
       },
-      searchTtlMs
+      searchCachePolicy
     );
   }
 
@@ -181,7 +220,7 @@ function createStopDataSource(dependencies = {}) {
           .sort((a, b) => a.distanceMeters - b.distanceMeters)
           .slice(0, safeLimit);
       },
-      nearestTtlMs
+      nearestCachePolicy
     );
   }
 

@@ -4,23 +4,40 @@ const PROVIDER_RUNTIME_POLICY = Object.freeze({
   cache: {
     adapter: {
       defaultTtlMs: 30000,
+      defaultStaleIfErrorTtlMs: 0,
+      defaultNegativeTtlMs: 5000,
+      defaultInFlightDedupe: true,
       maxEntries: 3000
     },
     stop: {
       searchTtlMs: 5 * 60 * 1000,
-      nearestTtlMs: 20 * 1000
+      searchStaleIfErrorTtlMs: 20 * 60 * 1000,
+      searchNegativeTtlMs: 20 * 1000,
+      nearestTtlMs: 20 * 1000,
+      nearestStaleIfErrorTtlMs: 60 * 1000,
+      nearestNegativeTtlMs: 8 * 1000
     },
     line: {
       searchTtlMs: 5 * 60 * 1000,
-      byStopTtlMs: 60 * 1000
+      searchStaleIfErrorTtlMs: 20 * 60 * 1000,
+      searchNegativeTtlMs: 25 * 1000,
+      byStopTtlMs: 60 * 1000,
+      byStopStaleIfErrorTtlMs: 3 * 60 * 1000,
+      byStopNegativeTtlMs: 15 * 1000
     },
     destination: {
       resolveTtlMs: 10 * 60 * 1000
     },
     arrival: {
       realtimeTtlMs: 12 * 1000,
+      realtimeStaleIfErrorTtlMs: 30 * 1000,
+      realtimeNegativeTtlMs: 5 * 1000,
       scheduledTtlMs: 90 * 1000,
-      stopArrivalsTtlMs: 10 * 1000
+      scheduledStaleIfErrorTtlMs: 5 * 60 * 1000,
+      scheduledNegativeTtlMs: 15 * 1000,
+      stopArrivalsTtlMs: 10 * 1000,
+      stopArrivalsStaleIfErrorTtlMs: 45 * 1000,
+      stopArrivalsNegativeTtlMs: 7 * 1000
     }
   },
   resilience: {
@@ -49,9 +66,11 @@ const PROVIDER_RUNTIME_POLICY = Object.freeze({
   },
   reliability: {
     thresholds: {
-      direct: 0.8,
-      disclaimer: 0.6
-    }
+      direct: 0.82,
+      caution: 0.62,
+      degraded: 0.45
+    },
+    allowScheduledDirect: false
   }
 });
 

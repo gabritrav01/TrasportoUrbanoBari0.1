@@ -19,6 +19,7 @@ describe('Arrival normalizer', () => {
   function createNormalizer(extra = {}) {
     return createArrivalNormalizer({
       now: () => FIXED_NOW,
+      serviceTimeZone: 'Europe/Rome',
       logger: createSilentLogger(),
       ...extra
     });
@@ -50,6 +51,82 @@ describe('Arrival normalizer', () => {
     expect(result.arrival.predictionType).toBe(PREDICTION_TYPES.SCHEDULED);
     expect(result.arrival.scheduledEpochMs).toBe(Date.parse('2026-03-09T09:15:00.000Z'));
     expect(result.arrival.etaMinutes).toBe(15);
+  });
+
+  test('parses HH:mm future time in same service day using service timezone', () => {
+    const normalizer = createNormalizer({
+      now: () => Date.parse('2026-03-09T10:00:00.000Z')
+    });
+    const result = normalizer.normalizeSingle(
+      {
+        stopId: 'STOP_500',
+        lineId: '5',
+        scheduled_time: '12:30',
+        asOfEpochMs: '2026-03-09T10:00:00.000Z',
+        source: 'public'
+      },
+      {
+        serviceDate: '2026-03-09'
+      }
+    );
+
+    expect(result.error).toBeNull();
+    expect(result.arrival.scheduledEpochMs).toBe(Date.parse('2026-03-09T11:30:00.000Z'));
+    expect(result.arrival.etaMinutes).toBe(90);
+  });
+
+  test('rolls over HH:mm to next day when time is already passed', () => {
+    const asOfEpochMs = Date.parse('2026-03-09T22:50:00.000Z');
+    const normalizer = createNormalizer({
+      now: () => asOfEpochMs
+    });
+    const result = normalizer.normalizeSingle(
+      {
+        stopId: 'STOP_600',
+        lineId: '6',
+        scheduled_time: '00:10',
+        asOfEpochMs,
+        source: 'public'
+      },
+      {
+        serviceDate: '2026-03-09'
+      }
+    );
+
+    expect(result.error).toBeNull();
+    expect(result.arrival.scheduledEpochMs).toBe(Date.parse('2026-03-09T23:10:00.000Z'));
+    expect(result.arrival.etaMinutes).toBe(20);
+  });
+
+  test('HH:mm and full ISO produce the same epoch for same local time', () => {
+    const normalizer = createNormalizer();
+    const context = {
+      serviceDate: '2026-03-09'
+    };
+    const clock = normalizer.normalizeSingle(
+      {
+        stopId: 'STOP_700',
+        lineId: '7',
+        scheduled_time: '12:30',
+        asOfEpochMs: '2026-03-09T10:00:00.000Z',
+        source: 'public'
+      },
+      context
+    );
+    const iso = normalizer.normalizeSingle(
+      {
+        stopId: 'STOP_700',
+        lineId: '7',
+        scheduled_time: '2026-03-09T12:30:00+01:00',
+        asOfEpochMs: '2026-03-09T10:00:00.000Z',
+        source: 'public'
+      },
+      context
+    );
+
+    expect(clock.error).toBeNull();
+    expect(iso.error).toBeNull();
+    expect(clock.arrival.scheduledEpochMs).toBe(iso.arrival.scheduledEpochMs);
   });
 
   test('returns INVALID_PAYLOAD when stopId/lineId are missing', () => {

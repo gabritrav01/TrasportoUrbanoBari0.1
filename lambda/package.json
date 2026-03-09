@@ -10,7 +10,9 @@
   },
   "scripts": {
     "lint": "node -e \"const fs=require('fs');const path=require('path');const cp=require('child_process');const skip=new Set(['node_modules','.git']);function walk(dir){for(const entry of fs.readdirSync(dir,{withFileTypes:true})){if(entry.isDirectory()){if(skip.has(entry.name))continue;walk(path.join(dir,entry.name));continue;}const full=path.join(dir,entry.name);if(full.endsWith('.js'))cp.execFileSync(process.execPath,['--check',full],{stdio:'inherit'});}}walk('.');\"",
-    "test": "jest --runInBand"
+    "test": "jest --runInBand",
+    "test:integration:amtab-real": "jest --runInBand tests/integration/amtab-real-provider.integration.test.js",
+    "smoke:amtab-real": "node scripts/amtab-real-smoke.js"
   },
   "dependencies": {
     "ask-sdk-core": "^2.14.0",

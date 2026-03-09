@@ -8,6 +8,10 @@ const {
   normalizeArrivalShape,
   createProviderError
 } = require('./providerShapes');
+const {
+  DEFAULT_SERVICE_TIME_ZONE,
+  parseFlexibleTimeValue
+} = require('./timeParsing');
 
 const STOP_ID_FIELDS = [
   'stopId',
@@ -162,39 +166,17 @@ function predictionRank(predictionType) {
   return 1;
 }
 
-function toTimeValue(rawValue, context) {
-  const text = toTextOrNull(rawValue);
-  if (!text) {
-    return null;
-  }
-
-  const numeric = toNumberOrNull(text);
-  if (numeric !== null) {
-    if (numeric > 1000000000000) {
-      return Math.round(numeric);
-    }
-    if (numeric > 1000000000) {
-      return Math.round(numeric * 1000);
-    }
-  }
-
-  const parsedIso = Date.parse(text);
-  if (!Number.isNaN(parsedIso)) {
-    return parsedIso;
-  }
-
-  const clockMatch = text.match(/^(\d{1,2}|\d{2,3}):(\d{2})(?::(\d{2}))?$/);
-  if (clockMatch) {
-    const hour = Number(clockMatch[1]);
-    const minute = Number(clockMatch[2]);
-    const second = Number(clockMatch[3] || 0);
-    const serviceDate = context.serviceDate instanceof Date ? context.serviceDate : new Date(context.nowEpochMs);
-    const midnight = new Date(serviceDate);
-    midnight.setHours(0, 0, 0, 0);
-    return midnight.getTime() + ((hour * 60 + minute) * 60 + second) * 1000;
-  }
-
-  return null;
+function toTimeValue(rawValue, context, options = {}) {
+  return parseFlexibleTimeValue(rawValue, {
+    referenceEpochMs: context.referenceEpochMs,
+    serviceDate: context.serviceDate,
+    serviceTimeZone: context.serviceTimeZone,
+    allowRollover: options.allowRollover !== false,
+    rolloverReferenceEpochMs:
+      typeof options.rolloverReferenceEpochMs === 'number' ? options.rolloverReferenceEpochMs : undefined,
+    rolloverPastMinutes:
+      typeof options.rolloverPastMinutes === 'number' ? options.rolloverPastMinutes : context.pastToleranceMinutes
+  });
 }
 
 function dedupeTimestampEpochMs(arrival) {
@@ -272,6 +254,10 @@ function normalizePredictionTypeFromInput(raw, defaults, predictedEpochMs, sched
 function createArrivalNormalizer(options = {}) {
   const logger = options.logger || createNoopLogger();
   const now = typeof options.now === 'function' ? options.now : () => Date.now();
+  const serviceTimeZone =
+    typeof options.serviceTimeZone === 'string' && options.serviceTimeZone.trim()
+      ? options.serviceTimeZone.trim()
+      : DEFAULT_SERVICE_TIME_ZONE;
   const dedupeWindowMs =
     typeof options.dedupeWindowMs === 'number' && options.dedupeWindowMs > 0 ? options.dedupeWindowMs : 60000;
   const pastToleranceMinutes =
@@ -351,16 +337,29 @@ function createArrivalNormalizer(options = {}) {
     const scheduledInput = pickFirstNonEmpty(raw, SCHEDULED_TIME_FIELDS);
     const asOfInput = pickFirstNonEmpty(raw, AS_OF_TIME_FIELDS);
 
-    const predictedEpochMs =
-      toTimeValue(predictedInput, context) ??
-      toTimeValue(context.defaults.predictedEpochMs, context);
-    const scheduledEpochMs =
-      toTimeValue(scheduledInput, context) ??
-      toTimeValue(context.defaults.scheduledEpochMs, context);
     const asOfEpochMs =
-      toTimeValue(asOfInput, context) ??
-      toTimeValue(context.defaults.asOfEpochMs, context) ??
+      toTimeValue(asOfInput, context, {
+        allowRollover: false
+      }) ??
+      toTimeValue(context.defaults.asOfEpochMs, context, {
+        allowRollover: false
+      }) ??
       nowEpochMs;
+
+    const predictedEpochMs =
+      toTimeValue(predictedInput, context, {
+        rolloverReferenceEpochMs: asOfEpochMs
+      }) ??
+      toTimeValue(context.defaults.predictedEpochMs, context, {
+        rolloverReferenceEpochMs: asOfEpochMs
+      });
+    const scheduledEpochMs =
+      toTimeValue(scheduledInput, context, {
+        rolloverReferenceEpochMs: asOfEpochMs
+      }) ??
+      toTimeValue(context.defaults.scheduledEpochMs, context, {
+        rolloverReferenceEpochMs: asOfEpochMs
+      });
 
     return {
       predictedEpochMs,
@@ -408,7 +407,16 @@ function createArrivalNormalizer(options = {}) {
       ...contextOverrides,
       defaults,
       nowEpochMs: now(),
-      serviceDate: contextOverrides.serviceDate instanceof Date ? contextOverrides.serviceDate : new Date(now())
+      serviceDate: contextOverrides.serviceDate !== undefined ? contextOverrides.serviceDate : new Date(now()),
+      serviceTimeZone:
+        typeof contextOverrides.serviceTimeZone === 'string' && contextOverrides.serviceTimeZone.trim()
+          ? contextOverrides.serviceTimeZone.trim()
+          : serviceTimeZone,
+      referenceEpochMs:
+        typeof contextOverrides.referenceEpochMs === 'number'
+          ? contextOverrides.referenceEpochMs
+          : (contextOverrides.serviceDate instanceof Date ? contextOverrides.serviceDate.getTime() : now()),
+      pastToleranceMinutes
     };
     const warnings = [];
 

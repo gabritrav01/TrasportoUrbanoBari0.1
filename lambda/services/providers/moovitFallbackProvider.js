@@ -106,7 +106,7 @@ class MoovitFallbackProvider extends TransportProvider {
               predictionType: PREDICTION_TYPES.INFERRED,
               confidence: 0.45,
               freshness: buildFallbackFreshness(),
-              reliabilityBand: 'disclaimer'
+              reliabilityBand: 'degraded'
             });
           });
       });
@@ -151,7 +151,7 @@ class MoovitFallbackProvider extends TransportProvider {
       predictionType: PREDICTION_TYPES.SCHEDULED,
       confidence: clampConfidence(0.5, 0.5),
       freshness: buildFallbackFreshness(),
-      reliabilityBand: 'disclaimer',
+      reliabilityBand: 'degraded',
       isRealtime: false
     }));
   }
