@@ -4,18 +4,23 @@ Skill Alexa Custom (`it-IT`) per il trasporto urbano di Bari, con backend Node.j
 
 ## Panoramica
 
-Il progetto fornisce una skill vocale che gestisce:
+La skill gestisce:
 
 - prossimi arrivi a fermata
-- linee verso una destinazione
+- linee e direzioni verso destinazione
 - richieste "da qui" / "vicino a me"
 - preferiti utente persistiti su DynamoDB
-- risposta "breve" o "completa"
-- gestione delle ambiguita con chiarimento
 
-Lo stato attuale e pensato per sviluppo e validazione: il catalogo trasporti e la geocodifica sono in parte stub e pronti per integrazione con sorgenti AMTAB reali.
+Stato attuale (2026-03-09):
 
-## Struttura cartelle
+- provider AMTAB reale integrato con flag runtime `TRANSPORT_DATA_MODE=amtab_real`
+- feed ufficiali usati: GTFS statico + GTFS-RT TripUpdates
+- scheduled derivato da `stop_times + trips + calendar/calendar_dates`
+- fallback controllato su catalogo stub con provenance prudente (mai promotion implicita a `official`)
+- Moovit fallback disabilitato di default (`MOOVIT_FALLBACK_ENABLED=false`)
+- geocoding ancora stub (centro Bari) in attesa provider reale
+
+## Struttura repository
 
 ```text
 .
@@ -28,12 +33,14 @@ Lo stato attuale e pensato per sviluppo e validazione: il catalogo trasporti e l
 |   |-- resolvers/
 |   |-- services/
 |   |   `-- providers/
+|   |-- tests/
 |   `-- utils/
 |-- skill-package/
 |   |-- skill.json
 |   `-- interactionModels/
 |       `-- custom/
 |           `-- it-IT.json
+|-- docs/
 |-- .env.example
 |-- .gitignore
 |-- CONTRIBUTING.md
@@ -52,15 +59,15 @@ Lo stato attuale e pensato per sviluppo e validazione: il catalogo trasporti e l
 - `skill-package/`
 - `lambda/` (con `lambda/index.js` come entrypoint)
 6. Completa l import e apri il modello linguistico `it-IT`.
-7. Esegui **Build Model** e poi testa dal tab **Test**.
+7. Esegui **Build Model** e testa dal tab **Test**.
 
-Se la console non trova i file richiesti, controlla prima la struttura cartelle e il branch selezionato.
+Se la console non trova i file richiesti, controlla struttura e branch selezionato.
 
 ## Sviluppo locale
 
 Prerequisiti:
 
-- Node.js 18 LTS (compatibile con `engines.node >=16`)
+- Node.js 18 LTS
 - npm
 
 Setup:
@@ -70,67 +77,65 @@ cd lambda
 npm ci
 ```
 
-Test locali:
+Comandi principali:
 
 ```powershell
 cd lambda
 npm run lint
 npm test
+npm run test:integration:amtab-real
+npm run smoke:amtab-real
 ```
 
-Variabili ambiente:
+## Configurazione ambiente
 
-- Usa `.env.example` come riferimento.
-- In locale imposta le variabili nel terminale o nel runner (questo progetto non carica automaticamente `.env`).
+Riferimento: `.env.example`
 
-Esempio PowerShell:
+Variabili principali:
 
-```powershell
-$env:AMTAB_API_BASE_URL="https://api.example"
-$env:AMTAB_API_KEY="replace_me"
-$env:MOOVIT_API_BASE_URL="https://api.example"
-$env:MOOVIT_API_KEY="replace_me"
-$env:DYNAMODB_PERSISTENCE_TABLE_NAME="TrasportoUrbanoBariSkillTable"
-```
+- `TRANSPORT_DATA_MODE=stub|amtab_real`
+- `MOOVIT_FALLBACK_ENABLED=false` (default raccomandato)
+- `AMTAB_REAL_STOPS_FEED_URL`
+- `AMTAB_REAL_TRIP_UPDATES_URL`
+- `AMTAB_REAL_GATEWAY_TIMEOUT_MS`
+- `DYNAMODB_PERSISTENCE_TABLE_NAME`
+
+Nota: il progetto non carica automaticamente `.env`; usa variabili di shell o configurazione runtime.
 
 ## Deploy e test funzionali
 
-Per una skill Alexa-hosted importata da Git:
+1. Esegui lint e test in locale.
+2. Commit e push sul branch collegato.
+3. In Alexa Developer Console sincronizza il codice dal repository.
+4. Esegui deploy Lambda dal tab **Code**.
+5. Ricostruisci il modello `it-IT` se hai cambiato interaction model.
+6. Verifica utterance e risposte nel tab **Test**.
 
-1. Esegui lint/test in locale.
-2. Commit e push su branch collegato.
-3. Nella Alexa Developer Console sincronizza il codice dal repository.
-4. Esegui deploy del codice Lambda dal tab **Code**.
-5. Ricostruisci il modello `it-IT` se hai modificato interaction model.
-6. Verifica gli utterance nel tab **Test**.
+## Stato integrazione dati
 
-## Come adattare i dati AMTAB reali
+Completato:
 
-Punti principali da completare:
+- gateway reale AMTAB (`amtabRealGateway`)
+- parsing GTFS statico (`stops`, `routes`, `trips`, `stop_times`, `calendar`, `calendar_dates`)
+- parsing GTFS-RT TripUpdates
+- mapping shape normalizzate (`Stop`, `Line`, `Arrival`)
+- scoring affidabilita e provenance guardrail
+- fallback controllato a stub + cache/resilienza
+- suite smoke e integrazione provider reale
 
-1. `lambda/services/providers/stubCatalog.js`
-- sostituire stop/linee/destinazioni stub con dati ufficiali e mapping ID stabili.
-2. `lambda/services/providers/amtabProvider.js`
-- implementare chiamate realtime e mapping payload nel metodo `getRealtimePredictions`.
-- implementare healthcheck reale nel metodo `ping`.
-3. `lambda/services/providers/moovitFallbackProvider.js`
-- integrare fallback reale solo se autorizzato contrattualmente.
-4. `lambda/services/geocodingService.js`
-- sostituire geocodifica stub con provider reale (gestione timeout, retry, quote, cache).
-5. `skill-package/skill.json`
-- sostituire URL placeholder (icone, privacy, termini) con URL validi di produzione.
+Ancora aperto:
 
-## Limiti e vincoli del repository pubblico
+- geocoding reale (`lambda/services/geocodingService.js`)
+- eventuale supporto GTFS-RT protobuf/VehiclePosition
+- validazione legale/rate-limit operativi AMTAB
 
-- Non committare segreti: token/API key solo tramite environment variables.
-- Mantenere la struttura Alexa-hosted corretta (`skill-package/` + `lambda/`).
+## Documentazione tecnica
+
+Indice aggiornato in [docs/README.md](docs/README.md).
+
+## Limiti repository pubblico
+
+- Non committare segreti (API key/token solo via env).
+- Mantenere struttura Alexa-hosted (`skill-package/` + `lambda/`).
 - Mantenere `lambda/index.js` come entrypoint Lambda.
-- Trattandosi di repo pubblico, usare solo dati e integrazioni distribuibili pubblicamente.
-
-## Roadmap Versione 1
-
-1. Integrazione realtime AMTAB in produzione.
-2. Geocodifica reale per flussi "da qui/vicino a me".
-3. Miglioramento copertura test (unit + integrazione).
-4. Hardening error handling e telemetria operativa.
-5. Revisione NLP it-IT con utterance reali e riduzione ambiguita.
+- Usare solo integrazioni distribuibili pubblicamente e coerenti con termini d uso.

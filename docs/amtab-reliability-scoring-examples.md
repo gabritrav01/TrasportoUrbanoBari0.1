@@ -1,8 +1,11 @@
-# AMTAB Reliability Scoring - Esempi Input/Output
+# AMTAB Reliability Scoring - Esempi
+
+Data aggiornamento: 2026-03-09  
+Stato: corrente
 
 ## 1) Official realtime fresco -> `direct`
 
-Input (arrival):
+Input:
 
 ```json
 {
@@ -16,19 +19,18 @@ Input (arrival):
 }
 ```
 
-Output qualità:
+Output atteso:
 
 ```json
 {
   "reliabilityBand": "direct",
-  "confidence": 0.92,
-  "freshness": { "ageSec": 5, "freshnessScore": 0.96, "bucket": "fresh" }
+  "confidence": 0.92
 }
 ```
 
-## 2) Official scheduled -> `caution` (policy default)
+## 2) Official scheduled -> `caution` (policy prudente default)
 
-Input (arrival):
+Input:
 
 ```json
 {
@@ -42,7 +44,7 @@ Input (arrival):
 }
 ```
 
-Output qualità:
+Output atteso:
 
 ```json
 {
@@ -51,9 +53,9 @@ Output qualità:
 }
 ```
 
-## 3) Inferred/headway fallback -> `degraded`
+## 3) Fallback inferred/headway -> `degraded`
 
-Input (arrival):
+Input:
 
 ```json
 {
@@ -67,7 +69,7 @@ Input (arrival):
 }
 ```
 
-Output qualità:
+Output atteso:
 
 ```json
 {
@@ -76,28 +78,48 @@ Output qualità:
 }
 ```
 
-## 4) ProviderResult vuoto o incompleto -> non `direct`
+## 4) Dato vecchio o incompleto -> `discard`
 
-Input (provider result):
-
-```json
-{
-  "ok": true,
-  "source": "official",
-  "predictionType": "realtime",
-  "confidence": 0.95,
-  "data": []
-}
-```
-
-Output qualità:
+Input:
 
 ```json
 {
-  "source": "official",
+  "stopId": "STOP_400",
+  "lineId": "4",
+  "source": "fallback",
+  "sourceName": "amtab_fallback",
   "predictionType": "realtime",
-  "confidence": 0.95,
-  "freshness": { "ageSec": null, "freshnessScore": 0.5, "bucket": "unknown" },
-  "reliabilityBand": "caution"
+  "confidence": 0.35,
+  "freshness": { "ageSec": 800, "freshnessScore": 0.05, "bucket": "stale" }
 }
 ```
+
+Output atteso:
+
+```json
+{
+  "reliabilityBand": "discard",
+  "confidence": 0.35
+}
+```
+
+## 5) Guardrail provenance: `inferred` mai `official`
+
+Input:
+
+```json
+{
+  "predictionType": "inferred",
+  "source": "official"
+}
+```
+
+Output atteso:
+
+```json
+{
+  "predictionType": "inferred",
+  "source": "public"
+}
+```
+

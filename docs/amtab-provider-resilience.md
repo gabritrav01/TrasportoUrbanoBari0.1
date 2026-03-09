@@ -1,6 +1,7 @@
 # Trasporto Urbano Bari - Resilienza provider AMTAB
 
 Data: 2026-03-09  
+Stato: riferimento  
 Obiettivo: mantenere la skill utile anche con fonti lente, parziali o non disponibili.
 
 ## 1) Linee guida tecniche
@@ -229,7 +230,7 @@ Comportamento:
 
 - deduplica per priorita fonte (`official > public > fallback`) e confidence.
 - warning diagnostico.
-- se drift oltre soglia critica, preferire scheduled + disclaimer.
+- se drift oltre soglia critica, preferire scheduled + risposta `caution`.
 
 ## Scenario E - Destinazione trovata ma arrivi mancanti
 

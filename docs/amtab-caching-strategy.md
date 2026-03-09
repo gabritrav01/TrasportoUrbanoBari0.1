@@ -1,6 +1,7 @@
 # Trasporto Urbano Bari - Strategia caching provider dati
 
 Data: 2026-03-09  
+Stato: riferimento  
 Ambiente target: Alexa-hosted skill (Node.js, Lambda managed, no infrastruttura complessa obbligatoria).
 
 ## Obiettivi

@@ -1,6 +1,7 @@
 # Trasporto Urbano Bari - Fonti dati AMTAB
 
 Data analisi: 2026-03-09 (timezone Europe/Rome)
+Stato: riferimento
 
 ## Obiettivo del report
 
@@ -149,9 +150,10 @@ Strategia V1 raccomandata: **GTFS statico ufficiale + GTFS-RT ufficiale**, con f
 
 Mappatura diretta nel codice attuale:
 
-- provider primario da implementare in [lambda/services/providers/amtabProvider.js](../lambda/services/providers/amtabProvider.js)
+- provider primario attivo in [lambda/services/providers/amtabProvider.js](../lambda/services/providers/amtabProvider.js)
+- gateway reale in [lambda/services/providers/amtab/amtabRealGateway.js](../lambda/services/providers/amtab/amtabRealGateway.js)
 - config endpoint/env in [lambda/services/transitService.js](../lambda/services/transitService.js) e [.env.example](../.env.example)
-- eliminazione progressiva dati stub in [lambda/services/providers/stubCatalog.js](../lambda/services/providers/stubCatalog.js)
+- fallback stub ancora presente in [lambda/services/providers/stubCatalog.js](../lambda/services/providers/stubCatalog.js) per resilienza controllata
 
 ## Piano operativo di verifica tecnica (step-by-step)
 
@@ -179,10 +181,10 @@ Mappatura diretta nel codice attuale:
 
 ### Fase D - Integrazione nel progetto Alexa
 
-1. Implementare `getRealtimePredictions` in `amtabProvider` usando S3.
-2. Sostituire gradualmente `stubCatalog` con dati da ingest GTFS.
-3. Aggiornare resolver stop/line/destination per usare ID GTFS reali.
-4. Aggiungere test automatici su mapping arrivi per fermata e linee verso destinazione.
+1. Verificare in runtime `TRANSPORT_DATA_MODE=amtab_real` per attivare il gateway reale.
+2. Consolidare gradualmente i resolver stop/line/destination su ID GTFS reali.
+3. Mantenere `stubCatalog` solo come fallback tecnico, senza provenance `official`.
+4. Eseguire smoke/integration test su mapping arrivi per fermata e linee verso destinazione.
 5. Tenere `moovitFallbackProvider` disabilitato in V1, abilitabile solo con flag e autorizzazione.
 
 ### Fase E - Hardening e go-live

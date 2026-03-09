@@ -6,6 +6,7 @@ Suite di integrazione per il primo uso del provider reale nel progetto "Trasport
 
 - fetch fermate reali (gateway GTFS statico)
 - fetch arrivi reali (gateway GTFS-RT TripUpdates)
+- derivazione scheduled da GTFS statico (`stop_times + trips + calendar`)
 - mapping verso shape normalizzate
 - scoring affidabilita (campi `confidence`, `reliabilityBand`, `freshness`)
 - fallback a stub con provenance corretta

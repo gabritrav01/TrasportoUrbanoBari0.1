@@ -1,6 +1,7 @@
 # Trasporto Urbano Bari - Shape normalizzate definitive del provider dati
 
 Data: 2026-03-09  
+Stato: corrente  
 File sorgente shape: `lambda/services/providers/domain/providerShapes.js`
 
 ## 1) Scopo

@@ -1,6 +1,7 @@
 # Trasporto Urbano Bari - MoovitFallbackProvider (architettura prudente)
 
 Data: 2026-03-09
+Stato: riferimento (fallback opzionale)
 
 Obiettivo:
 definire un fallback provider opzionale e secondario, mai primario, utile solo quando la fonte AMTAB non produce dati usabili.
@@ -124,12 +125,13 @@ Convenzioni consigliate:
 - `confidence` (range suggerito):
   - `0.55-0.70` dato strutturato coerente
   - `0.40-0.55` dato parziale
-  - `<0.40` da scartare o usare solo con disclaimer
+  - `<0.40` da scartare (`reliabilityBand=discard`)
 
 Comportamento voce Alexa:
 
-- se risposta include fallback: aggiungere disclaimer breve
-  - "Sto usando una fonte secondaria, i tempi potrebbero variare."
+- se risposta include fallback:
+  - `caution`: formula prudente breve
+  - `degraded`: dichiarare stima meno affidabile
 
 ## Sintesi
 

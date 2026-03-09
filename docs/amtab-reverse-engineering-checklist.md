@@ -1,6 +1,7 @@
 # Trasporto Urbano Bari - Checklist di Reverse Engineering Prudente (AMTAB/MUVT)
 
 Data: 2026-03-09  
+Stato: riferimento  
 Uso previsto: analisi tecnica controllata di sito/app per individuare fonti dati utili alla skill Alexa.
 
 ## Regole operative prima di iniziare

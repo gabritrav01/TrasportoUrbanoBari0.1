@@ -1,6 +1,7 @@
 # Trasporto Urbano Bari - Modulo normalizzazione arrivi
 
 Data: 2026-03-09  
+Stato: corrente  
 Implementazione: `lambda/services/providers/domain/arrivalNormalizer.js`
 
 ## 1) API del modulo (Node.js)

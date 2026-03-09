@@ -10,6 +10,8 @@ Questa cartella contiene una suite Jest per il provider dati AMTAB.
 - fallback realtime -> scheduled
 - scoring affidabilita
 - gestione errori/timeout e resilience helpers
+- integrazione provider AMTAB reale (GTFS statico + GTFS-RT)
+- smoke runtime senza handler Alexa
 
 ## Esecuzione locale
 
@@ -29,4 +31,16 @@ npm test
 
 ```bash
 npm test -- tests/providers/arrivals-data-source.test.js
+```
+
+4. Esegui integrazione provider reale:
+
+```bash
+npm run test:integration:amtab-real
+```
+
+5. Esegui smoke suite:
+
+```bash
+npm run smoke:amtab-real
 ```

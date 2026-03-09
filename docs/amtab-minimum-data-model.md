@@ -1,6 +1,7 @@
 # Trasporto Urbano Bari - Modello dati minimo per provider reale
 
 Data: 2026-03-09
+Stato: riferimento
 Scopo: definire il contratto dati minimo (runtime) per sostituire i dati stub e far funzionare davvero la skill con sorgenti AMTAB/MUVT reali.
 
 ## 1) Principi di modellazione

@@ -1,7 +1,7 @@
 # Trasporto Urbano Bari - Contratto tecnico fonte AMTAB verificata (V1)
 
 Data riferimento: 2026-03-09  
-Stato: implementabile, allineato all'attuale `amtabRealGateway`  
+Stato: corrente, allineato all'attuale `amtabRealGateway`  
 Perimetro: solo parti osservate in codice/repo. Ogni incertezza e marcata `TODO`.
 
 ## 1) Endpoint / file / feed effettivamente usati
@@ -21,12 +21,18 @@ Payload atteso (osservato dal parser):
 
 - Archivio ZIP GTFS
 - File richiesto: `stops.txt` (obbligatorio)
-- File usato: `routes.txt` (opzionale, usato per linee e mapping `route_id -> route_short_name`)
+- File usati:
+  - `routes.txt`
+  - `trips.txt`
+  - `stop_times.txt`
+  - `calendar.txt` (se disponibile)
+  - `calendar_dates.txt` (se disponibile)
 
 Entita estratte:
 
 - `Stop` (da `stops.txt`, via `parseStopsRaw -> mapRawStopToStop`)
 - `Line` (da `routes.txt`, via `mapRawLineToLine`)
+- `ScheduledArrival` (da `stop_times + trips + calendar/calendar_dates`)
 - Mapping ausiliario `routeShortNameByRouteId` per arrivi realtime
 
 Frequenza aggiornamento:
@@ -39,8 +45,7 @@ Limiti noti:
 
 - Se `stops.txt` manca: errore bloccante `AMTAB_REAL_GTFS_PARSE_ERROR`.
 - `routes.txt` opzionale: se assente, mapping linea meno preciso.
-- Nessun parsing V1 di `trips.txt`, `stop_times.txt`, `calendar*`.
-  `TODO(CONTRACT_SCHEDULE_STATIC): integrare schedule completo da GTFS statico.`
+- Se mancano `trips` o `stop_times`, il gateway continua a funzionare ma riduce il ramo scheduled statico.
 
 ## 1.2 Feed GTFS-RT TripUpdates AMTAB (JSON)
 
@@ -84,12 +89,15 @@ Limiti noti:
 - Campi delay/status/occupancy non ancora mappati.
   `TODO(CONTRACT_RT_FIELDS): confermare campi ufficiali AMTAB e mapparli.`
 
-## 1.3 File GTFS realmente consumati in V1
+## 1.3 File GTFS realmente consumati in runtime
 
 - `stops.txt` (obbligatorio): id, nome, coordinate fermata
-- `routes.txt` (opzionale ma usato): id linea, short/long name
-- Non ancora consumati in V1: `trips.txt`, `stop_times.txt`, `calendar.txt`, `calendar_dates.txt`, `shapes.txt`
-  `TODO(CONTRACT_GTFS_EXT): estendere ingest per scheduled robusto e route planning migliore.`
+- `routes.txt`: id linea, short/long name
+- `trips.txt`: `trip_id`, `route_id`, `service_id`, `trip_headsign`, `direction_id`
+- `stop_times.txt`: schedule per fermata/trip
+- `calendar.txt` + `calendar_dates.txt`: validita servizio
+- Non ancora consumati: `shapes.txt` (non necessario per V1 runtime)
+  `TODO(CONTRACT_GTFS_EXT): valutare uso di shapes/altri file per route planning avanzato.`
 
 ## 2) Mapping verso shape dominio
 
@@ -116,10 +124,10 @@ Campi principali:
 - `Stop.confidence` <- default by source + scoring
 - `Stop.freshness`, `Stop.reliabilityBand` <- `scoreRecordReliability`
 
-Gap V1:
+Gap attuale:
 
-- `Stop.lineIds` non arricchito da `stop_times`.
-  `TODO(CONTRACT_STOP_LINE_LINK): popolare lineIds da join GTFS statico.`
+- `Stop.lineIds` non e ancora popolato sistematicamente da join statico.
+  `TODO(CONTRACT_STOP_LINE_LINK): arricchire `lineIds` a livello fermata.`
 
 ## 2.2 Mapping `Arrival`
 
@@ -175,10 +183,10 @@ Campi principali:
 - `Line.destinationName` <- `route_long_name` o campi raw compatibili
 - `Line.source/sourceName/confidence/freshness/reliabilityBand` <- come sopra
 
-Gap V1:
+Gap attuale:
 
-- Mancano ancora direzioni/trip-level robusti da `trips.txt`.
-  `TODO(CONTRACT_LINE_DIRECTION): derivare direction/headsign reali per linea.`
+- Derivazione direzione/headsign a livello linea migliorabile (oggi orientata al trip/arrival).
+  `TODO(CONTRACT_LINE_DIRECTION): consolidare direction/headsign canonici per linea.`
 
 ## 3) Rischi operativi residui
 
@@ -188,8 +196,8 @@ Gap V1:
 2. Cadenza reale aggiornamento non formalizzata:
 `TODO(CONTRACT_MONITORING): monitor su Header.Timestamp, feed vuoti e drift freshness.`
 
-3. Scheduled incompleto:
-`TODO(CONTRACT_SCHEDULE): usare stop_times+calendar come base scheduled primaria quando realtime assente.`
+3. Scheduled dipendente da qualita feed statico:
+`TODO(CONTRACT_SCHEDULE): aggiungere metriche di completezza schedule e fallback piu granulari.`
 
 4. Policy/rate-limit/licenza non esplicitate nel codice:
 `TODO(CONTRACT_LEGAL_RATE): formalizzare limiti chiamate e termini d'uso AMTAB per produzione.`
@@ -218,11 +226,11 @@ Gap V1:
 3. Aggiungere stale detection su `headerTimestampEpochMs`:
    - se oltre soglia, degradare band e attivare fallback scheduled/stub.
 
-## 4.3 Estensione V1.1 (priorita media)
+## 4.3 Estensione successiva (priorita media)
 
-1. Ingest statico esteso (`trips/stop_times/calendar*`) per scheduled affidabile.
-2. Join statico+realtime per migliorare `lineId`, `destinationTargetId`, coerenza trip.
-3. Test integrazione contrattuali con fixture reali versionate (snapshot anonymized).
+1. Join statico+realtime piu ricco (`lineId`, `destinationTargetId`, coerenza trip).
+2. Test integrazione contrattuali con fixture reali versionate (snapshot anonymized).
+3. Supporto opzionale GTFS-RT protobuf se la fonte lo richiede.
 
 ## 4.4 Regole di fallback/provenance da mantenere
 
@@ -239,4 +247,3 @@ Gap V1:
 - Parser TripUpdates: `lambda/services/providers/amtab/parsers/tripUpdatesParser.js`
 - Mappers dominio: `lambda/services/providers/amtab/mappers/*.js`
 - Shape e scoring: `lambda/services/providers/domain/providerShapes.js`, `reliabilityScoring.js`, `qualityScoring.js`
-

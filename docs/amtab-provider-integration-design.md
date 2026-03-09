@@ -1,7 +1,13 @@
 # Trasporto Urbano Bari - Progettazione reale AmtabProvider (integrazione dati)
 
 Data: 2026-03-09  
+Stato: storico (documento di design iniziale)  
 Ambito: trasformazione dello stub AMTAB in una architettura pronta all'integrazione con fonti reali, senza inventare endpoint non verificati.
+
+Nota: parte dei punti "da implementare" e gia stata realizzata. Per stato runtime corrente vedere:
+
+- `docs/amtab-real-gateway.md`
+- `docs/amtab-verified-source-contract.md`
 
 ## 1) Obiettivo e vincoli
 

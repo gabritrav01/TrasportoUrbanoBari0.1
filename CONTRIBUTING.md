@@ -4,7 +4,7 @@ Grazie per voler contribuire a Trasporto Urbano Bari.
 
 ## Prerequisiti
 
-- Node.js 18 LTS (o superiore a 16)
+- Node.js 18 LTS
 - npm
 - account Alexa Developer (per test end-to-end)
 
