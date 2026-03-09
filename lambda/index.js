@@ -2,4 +2,8 @@
 
 const { createSkillHandler } = require('./config/bootstrap');
 
-exports.handler = createSkillHandler();
+const skillHandler = createSkillHandler();
+
+exports.handler = async (event, context) => {
+  return skillHandler(event, context);
+};

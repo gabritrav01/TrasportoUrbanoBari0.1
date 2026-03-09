@@ -10,15 +10,33 @@ const { createLineResolver } = require('../resolvers/lineResolver');
 const { createAmbiguityChoiceResolver } = require('../resolvers/ambiguityChoiceResolver');
 const formatter = require('../utils/formatter');
 
-const transitService = createTransitService();
-const geocodingService = createGeocodingService();
-const locationService = createLocationService({
-  geocodingService,
-  transportService: transitService
-});
-const ambiguityChoiceResolver = createAmbiguityChoiceResolver();
+let cachedCoreServices = null;
+
+function getCoreServices() {
+  if (cachedCoreServices) {
+    return cachedCoreServices;
+  }
+
+  const transitService = createTransitService();
+  const geocodingService = createGeocodingService();
+  const locationService = createLocationService({
+    geocodingService,
+    transportService: transitService
+  });
+  const ambiguityChoiceResolver = createAmbiguityChoiceResolver();
+
+  cachedCoreServices = {
+    transitService,
+    geocodingService,
+    locationService,
+    ambiguityChoiceResolver
+  };
+
+  return cachedCoreServices;
+}
 
 function buildRequestContainer(handlerInput) {
+  const coreServices = getCoreServices();
   const userPreferencesRepository = createUserPreferencesRepository(handlerInput.attributesManager);
 
   return {
@@ -26,15 +44,18 @@ function buildRequestContainer(handlerInput) {
       userPreferencesRepository
     },
     services: {
-      transitService,
-      geocodingService,
-      locationService
+      transitService: coreServices.transitService,
+      geocodingService: coreServices.geocodingService,
+      locationService: coreServices.locationService
     },
     resolvers: {
-      stopResolver: createStopResolver({ transitService, locationService }),
-      destinationResolver: createDestinationResolver({ transitService }),
-      lineResolver: createLineResolver({ transitService }),
-      ambiguityChoiceResolver
+      stopResolver: createStopResolver({
+        transitService: coreServices.transitService,
+        locationService: coreServices.locationService
+      }),
+      destinationResolver: createDestinationResolver({ transitService: coreServices.transitService }),
+      lineResolver: createLineResolver({ transitService: coreServices.transitService }),
+      ambiguityChoiceResolver: coreServices.ambiguityChoiceResolver
     },
     formatter
   };

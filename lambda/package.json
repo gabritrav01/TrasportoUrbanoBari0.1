@@ -6,7 +6,7 @@
   "main": "index.js",
   "license": "MIT",
   "engines": {
-    "node": ">=18"
+    "node": "18.x"
   },
   "scripts": {
     "lint": "node -e \"const fs=require('fs');const path=require('path');const cp=require('child_process');const skip=new Set(['node_modules','.git']);function walk(dir){for(const entry of fs.readdirSync(dir,{withFileTypes:true})){if(entry.isDirectory()){if(skip.has(entry.name))continue;walk(path.join(dir,entry.name));continue;}const full=path.join(dir,entry.name);if(full.endsWith('.js'))cp.execFileSync(process.execPath,['--check',full],{stdio:'inherit'});}}walk('.');\"",
